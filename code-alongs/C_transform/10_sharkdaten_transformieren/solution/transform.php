@@ -1,0 +1,647 @@
+<?php
+/**
+ * Code-Along 10: Shark-Daten transformieren – eine mögliche Lösung
+ *
+ * Die Kategorien sind bewusst klein und explizit. Eine unbekannte Art wird
+ * nicht geraten. Andere fachlich begründete Mappings sind möglich, müssen aber
+ * dokumentiert und auditiert werden.
+ *
+ * -------------------------------------------------------------------------
+ * FÜR DOZIERENDE: Diesen Code nicht vortippen lassen
+ * -------------------------------------------------------------------------
+ * Dieser Transform soll im Unterricht mit KI entstehen – das ist der Zweck des
+ * Code-Alongs. Die Klasse stellt ihre Datenfragen selbst, erkundet die Rohwerte
+ * mit ../explore.php und schreibt ihre Spezifikation ins Gerüst ../KI_PROMPT.md.
+ * Erst danach beauftragt sie die KI.
+ *
+ * Diese Datei ist die Referenz für die Prüfung, nicht die Vorlage zum
+ * Abschreiben. Was die KI liefert, wird anders aussehen und darf das auch:
+ * andere Kategorienamen, andere Reihenfolge, andere Hilfsfunktionen. Die
+ * Kontrollfragen stehen in ../Ablauf/10_sharkdaten_transformieren_ablauf.md
+ * unter «Abnahme».
+ *
+ * Auch die Kommentare hier dürft ihr von der KI erzeugen lassen. Nur die
+ * fachlichen Entscheide – welche Kategorien es gibt, was null bedeutet, welche
+ * Aussage die Story machen darf – kommen von der Klasse.
+ *
+ * -------------------------------------------------------------------------
+ * Datenfluss dieser Datei
+ * -------------------------------------------------------------------------
+ *
+ *   8702 CSV-Zeilen, ein Vorfall pro Zeile       (aus extract.php)
+ *     -> 3347 Vorfälle 1950–2018, Unprovoked
+ *       -> zwei Zähl-Arrays: Art und Aktivität   ($speciesCounts, $activityCounts)
+ *         -> 17 Ranking-Zeilen in einer Liste    ($rankingRows)
+ *       -> ein Zähl-Array pro Land               ($byCountry)
+ *         -> 121 Länderzeilen                    ($countryRows)
+ *
+ * Die 17 sind 10 Hai-Kategorien plus 7 Aktivitätsgruppen: Bei den Aktivitäten
+ * gibt es gar keine zehn Gruppen, die Top-10 ist dort einfach die ganze Liste.
+ *
+ * Anders als in Code-Along 09 entstehen hier MEHRERE Ergebnisse aus denselben
+ * Daten. Die beiden Ranglisten stehen in einer flachen Liste und werden über
+ * das Feld `dimension` auseinandergehalten – so kann das Frontend beide mit
+ * demselben Code zeichnen.
+ *
+ * Die Länderzeilen haben eine andere Form und stehen deshalb daneben: Eine
+ * Rangliste hat einen Platz, ein Land hat einen Ländercode. Zwei Formen,
+ * zwei Listen – das ist ehrlicher, als beides in ein Schema zu pressen.
+ */
+
+$rawAttacks = include __DIR__ . '/extract.php';
+
+/**
+ * Die Nachschlagetabelle: GSAF-Schreibweise -> ISO-3166-Ländercode.
+ *
+ * Warum überhaupt ein Code? Weil das Frontend die Länder mit einer Kartendatei
+ * verbinden muss, und die kennt keine Namen wie "USA" oder "SOUTH AFRICA",
+ * sondern Codes wie "USA" und "ZAF". Ein Name ist eine Schreibweise, ein Code
+ * ist ein Schlüssel.
+ *
+ * Die Tabelle hat 50 Einträge und ist bewusst unvollständig. Was nicht
+ * drinsteht, wird nicht geraten – dieselbe Haltung wie bei den Hai-Arten.
+ */
+$isoByCountry = json_decode(
+    file_get_contents(__DIR__ . '/../data/laender_iso.json'),
+    true,
+    512,
+    JSON_THROW_ON_ERROR
+);
+
+// Die Regeln aus der Planungsrunde. Sie stehen zuoberst und werden am Schluss
+// unter `rules` mit ausgegeben, damit die Auswahl im Resultat sichtbar bleibt.
+$yearFrom = 1950;
+$yearTo = 2018;
+$topN = 10;
+
+/**
+ * TODO 2 (Teil 1): Rohe Artangabe zu einer Kategorie machen.
+ *
+ * Der Rückgabetyp ?string ist die zentrale Entscheidung dieser Funktion:
+ * null heisst «nicht zuordenbar», nicht «unbekannte Art». Wir behaupten
+ * lieber nichts, als etwas Falsches zu behaupten.
+ */
+function normalizeSpecies(string $raw): ?string
+{
+    $value = strtolower(trim($raw));
+
+    // Erst die Ausschlüsse, dann die Zuordnung. Jedes dieser Wörter ist ein
+    // Hinweis der Erfasser:innen, dass sie selbst unsicher waren – etwa
+    // "Possibly a white shark". Diese Unsicherheit dürfen wir nicht
+    // wegtransformieren.
+    //
+    // 'possiby' ist kein Tippfehler von uns, sondern steht so im Datensatz.
+    // Solche Funde kommen aus der Kontrolle der häufigsten nicht zugeordneten
+    // Rohwerte (siehe most_frequent_unmapped_species im Audit).
+    if (
+        $value === ''
+        || str_contains($value, 'not confirmed')
+        || str_contains($value, 'questionable')
+        || str_contains($value, 'invalid')
+        || str_contains($value, 'unknown')
+        || str_contains($value, 'unidentified')
+        || str_contains($value, 'possibly')
+        || str_contains($value, 'possiby')
+        || str_contains($value, 'probably')
+        || str_contains($value, 'thought to involve')
+        || str_contains($value, 'may have')
+        || str_contains($value, 'believed')
+        || str_contains($value, 'suspect')
+        || str_contains($value, 'said to')
+        || str_contains($value, 'either')
+        // "Blacktip or spinner shark" nennt zwei Arten und wird deshalb keiner
+        // von beiden zugeschlagen. \b sind Wortgrenzen: So trifft die Regel das
+        // Wort "or", aber nicht das "or" in "north" oder "sailor".
+        || preg_match('/\bor\b/', $value) === 1
+    ) {
+        return null;
+    }
+
+    // Spezifische Begriffe stehen vor allgemeineren Begriffen.
+    //
+    // Die Liste ist absichtlich kurz. Jede Kategorie ist eine fachliche
+    // Behauptung, die jemand verteidigen können muss – deshalb keine Kategorie
+    // ohne klares Textmuster.
+    $patterns = [
+        'White shark' => ['white shark', 'great white'],
+        'Tiger shark' => ['tiger shark'],
+        'Bull / Zambesi shark' => ['bull shark', 'zambesi shark'],
+        'Sand tiger / Raggedtooth / Grey nurse shark' => [
+            'sand tiger',
+            'raggedtooth',
+            'grey nurse',
+        ],
+        'Blacktip shark' => ['blacktip'],
+        'Wobbegong' => ['wobbegong'],
+        'Blue shark' => ['blue shark'],
+        'Bronze whaler / Copper shark' => ['bronze whaler', 'copper shark'],
+        'Lemon shark' => ['lemon shark'],
+        'Hammerhead' => ['hammerhead'],
+        'Mako shark' => ['mako'],
+    ];
+
+    // Zwei verschachtelte Schleifen: aussen die Kategorie, innen ihre
+    // Schreibweisen. Der erste Treffer gewinnt und steigt sofort aus.
+    foreach ($patterns as $category => $needles) {
+        foreach ($needles as $needle) {
+            if (str_contains($value, $needle)) {
+                return $category;
+            }
+        }
+    }
+
+    // Alles, was durchfällt – "2 m shark", "shark involvement not confirmed",
+    // schlicht "shark" – bleibt bewusst ohne Kategorie.
+    return null;
+}
+
+/**
+ * TODO 2 (Teil 2): Rohe Aktivität zu einer Gruppe machen.
+ *
+ * Hier ist die REIHENFOLGE der if-Blöcke die eigentliche Logik. Wer sie
+ * umstellt, ändert das Ergebnis, ohne dass ein Fehler auftritt. Das ist die
+ * Stelle, an der KI-Code am häufigsten still falsch ist.
+ */
+function normalizeActivity(string $raw): ?string
+{
+    $value = strtolower(trim($raw));
+
+    if ($value === '') {
+        return null;
+    }
+
+    // Die Reihenfolge verhindert z. B., dass Spearfishing nur Fishing wird.
+    if (str_contains($value, 'spearfish')) {
+        return 'Spearfishing';
+    }
+
+    // "Surf fishing" enthält das Wort "surf" und würde sonst weiter unten als
+    // Surfing gezählt. Deshalb steht der Spezialfall vor der allgemeinen Regel.
+    if (str_contains($value, 'surf fish')) {
+        return 'Fishing';
+    }
+
+    if (
+        str_contains($value, 'surf')
+        || str_contains($value, 'boogie board')
+        || str_contains($value, 'body board')
+        || str_contains($value, 'bodyboard')
+        || str_contains($value, 'kite board')
+    ) {
+        return 'Surfing & board sports';
+    }
+
+    // Schwimmen und im flachen Wasser stehen werden hier zusammengefasst. Das
+    // ist eine Vereinfachung: Wer im Wasser steht, tut etwas anderes als wer
+    // schwimmt. Für unsere Frage reicht die Gruppe – gesagt werden muss es
+    // trotzdem.
+    if (
+        str_contains($value, 'swim')
+        || str_contains($value, 'bathing')
+        || str_contains($value, 'wading')
+        || str_contains($value, 'standing')
+        || str_contains($value, 'walking')
+        || str_contains($value, 'treading water')
+        || str_contains($value, 'floating')
+    ) {
+        return 'Swimming & wading';
+    }
+
+    if (
+        str_contains($value, 'diving')
+        || str_contains($value, 'snorkel')
+        || str_contains($value, 'scuba')
+    ) {
+        return 'Diving & snorkeling';
+    }
+
+    // Die allgemeine Fisch-Regel steht bewusst NACH Spearfishing und
+    // Surf fishing.
+    if (str_contains($value, 'fish') || str_contains($value, 'angling')) {
+        return 'Fishing';
+    }
+
+    // 'paddl' fängt paddling, paddleboarding und paddled gemeinsam ab.
+    if (
+        str_contains($value, 'paddl')
+        || str_contains($value, 'kayak')
+        || str_contains($value, 'canoe')
+        || str_contains($value, 'rowing')
+    ) {
+        return 'Paddling';
+    }
+
+    if (
+        str_contains($value, 'boat')
+        || str_contains($value, 'sailing')
+        || str_contains($value, 'yacht')
+    ) {
+        return 'Boating';
+    }
+
+    return null;
+}
+
+/**
+ * TODO 2 (Teil 3): Rohen Ländernamen zu einem ISO-Code machen.
+ *
+ * Der Unterschied zu den beiden Funktionen darüber ist wichtig: Dort wird aus
+ * Freitext eine Kategorie, die WIR erfunden haben. Hier wird aus einem Namen
+ * ein Code, den es schon gibt. Wir ordnen nicht ein, wir schlagen nach.
+ *
+ * strtoupper vor dem Nachschlagen ist keine Kosmetik: Im Datensatz stehen
+ * "FIJI" (38-mal) und "Fiji" (2-mal). Ohne diese Zeile wären das zwei Länder.
+ */
+function countryIso(string $raw, array $isoByCountry): ?string
+{
+    $value = strtoupper(trim($raw));
+
+    // ?? null macht aus «Schlüssel gibt es nicht» ein sauberes null, statt
+    // eine Warnung zu erzeugen.
+    return $isoByCountry[$value] ?? null;
+}
+
+/**
+ * TODO 3: einen Zähler in einem assoziativen Array um eins erhöhen.
+ *
+ * Das & vor $counts ist neu gegenüber Block A: Ohne & bekäme die Funktion eine
+ * Kopie des Arrays und die Zählung ginge draussen verloren. Mit & arbeitet sie
+ * direkt auf dem Array der aufrufenden Stelle.
+ *
+ * ($counts[$category] ?? 0) + 1 erspart die Prüfung, ob es die Kategorie schon
+ * gibt: Beim ersten Mal ist sie nicht gesetzt, ?? liefert dann 0.
+ */
+function incrementCount(array &$counts, string $category): void
+{
+    $counts[$category] = ($counts[$category] ?? 0) + 1;
+}
+
+/**
+ * TODO 4 und 5: aus einem Zähl-Array eine sortierte Top-N-Rangliste machen.
+ *
+ * Die Funktion wird zweimal aufgerufen – einmal für Arten, einmal für
+ * Aktivitäten. Beide Ranglisten haben dadurch garantiert denselben Aufbau,
+ * und der Datenvertrag steht nur an einer Stelle im Code.
+ */
+function makeRankingRows(
+    array $counts,
+    string $dimension,
+    int $limit
+): array {
+    // Schritt 1: aus "Kategorie => Anzahl" wird eine Liste von Zeilen.
+    $rows = [];
+
+    foreach ($counts as $category => $incidents) {
+        $rows[] = [
+            'dimension' => $dimension,
+            'category' => $category,
+            'incidents' => $incidents,
+        ];
+    }
+
+    // Schritt 2: absteigend nach Anzahl sortieren. $b vor $a dreht die
+    // Richtung um. Bei Gleichstand entscheidet der Name alphabetisch – ohne
+    // diesen zweiten Vergleich wäre die Reihenfolge bei gleicher Anzahl
+    // zufällig und das Ergebnis nicht reproduzierbar.
+    usort($rows, function (array $a, array $b): int {
+        $byCount = $b['incidents'] <=> $a['incidents'];
+        return $byCount !== 0 ? $byCount : $a['category'] <=> $b['category'];
+    });
+
+    // Schritt 3: nur die ersten $limit Zeilen behalten.
+    $rows = array_slice($rows, 0, $limit);
+
+    // Schritt 4: Rang vergeben. Der Rang ergibt sich aus der Position, deshalb
+    // erst hier, nach dem Sortieren und Kürzen.
+    //
+    // Die Zeile wird komplett neu zusammengesetzt, statt nur 'rank' zu
+    // ergänzen. Grund: In PHP behält ein Array die Reihenfolge, in der die
+    // Schlüssel gesetzt wurden, und diese Reihenfolge landet so im JSON.
+    // Neu bauen heisst: die Felder erscheinen in der Reihenfolge des
+    // Datenvertrags – dimension, rank, category, incidents.
+    //
+    // &$row ist wieder eine Referenz, damit die Änderung im Array ankommt.
+    // Das unset danach ist Pflicht: Ohne es zeigt $row weiterhin auf die
+    // letzte Zeile, und die nächste Schleife mit derselben Variable würde sie
+    // überschreiben. Ein klassischer PHP-Stolperstein.
+    foreach ($rows as $index => &$row) {
+        $row = [
+            'dimension' => $row['dimension'],
+            'rank' => $index + 1,
+            'category' => $row['category'],
+            'incidents' => $row['incidents'],
+        ];
+    }
+    unset($row);
+
+    return $rows;
+}
+
+/**
+ * TODO 7: aus einem Zähl-Array den häufigsten Eintrag holen.
+ *
+ * makeRankingRows() liefert eine ganze Rangliste. Hier brauchen wir nur den
+ * ersten Platz – einmal für die Art, einmal für die Tätigkeit, und das pro Land.
+ *
+ * null bei einem leeren Array ist wieder eine Aussage: In diesem Land konnte
+ * keine einzige Art bestimmt werden. Das kommt oft vor und darf nicht als
+ * «keine Angabe» verschwinden.
+ */
+function topCategory(array $counts): ?string
+{
+    if ($counts === []) {
+        return null;
+    }
+
+    arsort($counts);
+
+    return (string) array_key_first($counts);
+}
+
+/**
+ * TODO 8: aus den Länder-Zählern die Ergebnisliste bauen.
+ *
+ * Anders als bei den Ranglisten wird hier NICHT auf Top-10 gekürzt. Die Karte
+ * färbt alle Länder ein, für die es Zahlen gibt – auch die mit einem einzigen
+ * Vorfall. Ein weisses Land auf der Karte heisst «keine Daten», und das soll
+ * es auch nur dann heissen.
+ */
+function makeCountryRows(array $byCountry, array $isoByCountry): array
+{
+    $rows = [];
+
+    foreach ($byCountry as $country => $counts) {
+        $rows[] = [
+            'country' => $country,
+            'iso3' => countryIso($country, $isoByCountry),
+            'incidents' => $counts['incidents'],
+            'top_species' => topCategory($counts['species']),
+            'top_activity' => topCategory($counts['activity']),
+        ];
+    }
+
+    // Dieselbe Sortierregel wie in makeRankingRows: erst die Anzahl, bei
+    // Gleichstand der Name. Ohne den zweiten Vergleich stünden die vielen
+    // Länder mit genau einem Vorfall bei jedem Durchlauf anders da.
+    usort($rows, function (array $a, array $b): int {
+        $byCount = $b['incidents'] <=> $a['incidents'];
+        return $byCount !== 0 ? $byCount : $a['country'] <=> $b['country'];
+    });
+
+    return $rows;
+}
+
+/**
+ * TODO 6: die häufigsten Rohwerte finden, die keiner Kategorie zugeordnet
+ * wurden.
+ *
+ * Diese Liste ist das Werkzeug zur Verbesserung des Mappings: Steht ganz oben
+ * ein Wert, den man eigentlich zuordnen könnte, fehlt eine Regel. Steht dort
+ * "2 m shark", ist alles richtig gelaufen.
+ *
+ * arsort sortiert absteigend nach Wert UND behält dabei die Schlüssel – bei
+ * "Rohwert => Anzahl" wäre der Rohwert sonst weg. Das true in array_slice
+ * erhält die Schlüssel ebenfalls.
+ */
+function mostFrequentValues(array $counts, int $limit): array
+{
+    arsort($counts);
+    $result = [];
+
+    foreach (array_slice($counts, 0, $limit, true) as $value => $count) {
+        $result[] = ['raw_value' => $value, 'count' => $count];
+    }
+
+    return $result;
+}
+
+// Anders als in Code-Along 09 gehen diese Zähler auf: klassifiziert plus
+// unklassifiziert ergibt included_incidents, und die drei excluded-Zähler plus
+// included ergeben input_rows. Diese Rechnung in der Abnahme laut vorführen –
+// sie ist der Beweis, dass keine Zeile unbemerkt verschwunden ist.
+$audit = [
+    'input_rows' => count($rawAttacks),
+    'excluded_invalid_year' => 0,
+    'excluded_outside_period' => 0,
+    'excluded_not_unprovoked' => 0,
+    'included_incidents' => 0,
+    'species_classified' => 0,
+    'species_unclassified' => 0,
+    'activity_classified' => 0,
+    'activity_unclassified' => 0,
+    // Diese beiden heissen NICHT excluded_*: Ein Vorfall ohne Land zählt
+    // weiterhin in beiden Ranglisten mit. Er fehlt nur auf der Karte.
+    'incidents_without_country' => 0,
+    'incidents_with_iso' => 0,
+];
+
+// Drei flache Zähl-Arrays wie bisher: zweimal für das Ergebnis, einmal für die
+// Qualitätskontrolle des Mappings.
+$speciesCounts = [];
+$activityCounts = [];
+$unmappedSpeciesCounts = [];
+
+// Und zwei neue. $byCountry ist verschachtelt: pro Land wieder drei Zähler.
+// So sieht das für ein Land aus, während die Schleife läuft:
+//
+//   $byCountry['BAHAMAS'] = [
+//       'incidents' => 78,
+//       'species'   => ['Bull / Zambesi shark' => 13, 'Tiger shark' => 9, ...],
+//       'activity'  => ['Spearfishing' => 37, 'Swimming & wading' => 12, ...],
+//   ];
+//
+// Aus diesen drei Zahlen wird später eine Zeile mit dem häufigsten Eintrag.
+$byCountry = [];
+$unmappedCountryCounts = [];
+
+// ---------------------------------------------------------------------------
+// TODO 1 bis 3: filtern, normalisieren, zählen
+// ---------------------------------------------------------------------------
+
+foreach ($rawAttacks as $attack) {
+    // (string) und trim vor jeder Prüfung: Die Werte kommen aus einer CSV und
+    // sind immer Text, oft mit Leerzeichen am Rand.
+    $yearRaw = trim((string) ($attack['Year'] ?? ''));
+
+    // TODO 1, Filter 1: Ohne brauchbare Jahreszahl lässt sich der Vorfall
+    // nicht einordnen.
+    if ($yearRaw === '' || !is_numeric($yearRaw)) {
+        $audit['excluded_invalid_year']++;
+        continue;
+    }
+
+    // TODO 1, Filter 2: Zeitraum. Vor 1950 ist der Datensatz lückenhaft, nach
+    // 2018 unvollständig erfasst.
+    $year = (int) $yearRaw;
+    if ($year < $yearFrom || $year > $yearTo) {
+        $audit['excluded_outside_period']++;
+        continue;
+    }
+
+    // TODO 1, Filter 3: Nur unprovozierte Vorfälle. Provozierte Fälle sagen
+    // etwas über menschliches Verhalten aus, nicht über die Frage.
+    // Der Vergleich ist strikt und exakt – "Unprovoked " mit Leerzeichen ist
+    // durch trim schon erledigt, "unprovoked" klein geschrieben fällt hier
+    // bewusst raus, weil es im Datensatz nicht vorkommt.
+    if (trim((string) ($attack['Type'] ?? '')) !== 'Unprovoked') {
+        $audit['excluded_not_unprovoked']++;
+        continue;
+    }
+
+    // Ab hier gehört der Vorfall zur Auswahl. Das ist der Nenner für die
+    // Abdeckung weiter unten.
+    $audit['included_incidents']++;
+
+    // TODO 2: normalisieren. Nur diese beiden Felder – Fatal, Name und Injury
+    // bleiben unangetastet, weil die zwei Fragen sie nicht brauchen.
+    $speciesRaw = trim((string) ($attack['Species'] ?? ''));
+    $species = normalizeSpecies($speciesRaw);
+    $activity = normalizeActivity((string) ($attack['Activity'] ?? ''));
+
+    // TODO 3: zählen. Nicht zugeordnete Arten verschwinden nicht, sondern
+    // landen im Kontroll-Array mit ihrem Rohwert.
+    if ($species === null) {
+        $audit['species_unclassified']++;
+        $label = $speciesRaw === '' ? '(empty)' : $speciesRaw;
+        incrementCount($unmappedSpeciesCounts, $label);
+    } else {
+        $audit['species_classified']++;
+        incrementCount($speciesCounts, $species);
+    }
+
+    if ($activity === null) {
+        $audit['activity_unclassified']++;
+    } else {
+        $audit['activity_classified']++;
+        incrementCount($activityCounts, $activity);
+    }
+
+    // -----------------------------------------------------------------------
+    // TODO 7: dasselbe noch einmal, aber pro Land
+    // -----------------------------------------------------------------------
+    //
+    // Wichtig: Hier steht kein continue. Ein Vorfall ohne Land bleibt in den
+    // beiden Ranglisten oben – er fällt nur aus der Karte heraus. Wer hier
+    // filtert, ändert unbemerkt auch die Zahlen der Arten und Tätigkeiten.
+
+    $country = strtoupper(trim((string) ($attack['Country'] ?? '')));
+
+    if ($country === '') {
+        $audit['incidents_without_country']++;
+        continue;
+    }
+
+    // Beim ersten Vorfall eines Landes gibt es die drei Zähler noch nicht.
+    // ??= setzt den Wert nur dann, wenn er fehlt.
+    $byCountry[$country] ??= ['incidents' => 0, 'species' => [], 'activity' => []];
+    $byCountry[$country]['incidents']++;
+
+    // Art und Aktivität sind oben schon normalisiert – wir zählen dieselben
+    // Kategorien einfach ein zweites Mal, diesmal im Topf des Landes.
+    if ($species !== null) {
+        incrementCount($byCountry[$country]['species'], $species);
+    }
+
+    if ($activity !== null) {
+        incrementCount($byCountry[$country]['activity'], $activity);
+    }
+
+    // Zwei Zahlen für die Ehrlichkeit der Karte: Wie viele Vorfälle haben
+    // einen Ländercode – und welche Ländernamen fehlen in der Tabelle?
+    if (countryIso($country, $isoByCountry) === null) {
+        incrementCount($unmappedCountryCounts, $country);
+    } else {
+        $audit['incidents_with_iso']++;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TODO 4 und 5: zwei Ranglisten, ein Datenvertrag
+// ---------------------------------------------------------------------------
+//
+// Die drei Punkte sind der Spread-Operator: Er hängt die Zeilen beider
+// Ranglisten hintereinander in EINE flache Liste. Unterschieden werden sie
+// später am Feld `dimension`.
+
+$rankingRows = [
+    ...makeRankingRows($speciesCounts, 'shark_category', $topN),
+    ...makeRankingRows($activityCounts, 'activity_group', $topN),
+];
+
+// ---------------------------------------------------------------------------
+// TODO 8: die Länderzeilen
+// ---------------------------------------------------------------------------
+//
+// Kein Spread und keine gemeinsame Liste: Diese Zeilen haben andere Felder als
+// eine Rangliste und bleiben deshalb für sich.
+
+$countryRows = makeCountryRows($byCountry, $isoByCountry);
+
+// ---------------------------------------------------------------------------
+// TODO 6: Abdeckung berechnen
+// ---------------------------------------------------------------------------
+//
+// Die Abdeckung ist die ehrlichste Zahl im ganzen Resultat: Sie sagt, für wie
+// viel Prozent der eingeschlossenen Vorfälle wir überhaupt eine Aussage haben.
+// Bei den Arten ist sie niedrig, und das gehört so in die Story.
+//
+// Die Prüfung auf 0 verhindert eine Division durch null, falls alle Zeilen
+// weggefiltert wurden – etwa wenn jemand den Zeitraum falsch setzt.
+
+$included = $audit['included_incidents'];
+$audit['species_coverage_percent'] = $included === 0
+    ? 0.0
+    : round($audit['species_classified'] / $included * 100, 1);
+$audit['activity_coverage_percent'] = $included === 0
+    ? 0.0
+    : round($audit['activity_classified'] / $included * 100, 1);
+$audit['most_frequent_unmapped_species'] = mostFrequentValues(
+    $unmappedSpeciesCounts,
+    10
+);
+
+// Dieselbe Rechnung für die Karte. Die Abdeckung liegt hier bei rund 95
+// Prozent und damit weit über der der Arten – trotzdem gehört sie ausgewiesen,
+// denn sie sagt, wie vollständig die Karte ist.
+$audit['countries_total'] = count($countryRows);
+$audit['countries_with_iso'] = count(
+    array_filter($countryRows, fn(array $row): bool => $row['iso3'] !== null)
+);
+$audit['iso_coverage_percent'] = $included === 0
+    ? 0.0
+    : round($audit['incidents_with_iso'] / $included * 100, 1);
+
+// Die wichtigste Kontrollliste dieses Schritts: Steht hier ein Land, das in
+// der Nachschlagetabelle fehlt, gehört es ergänzt. Steht hier etwas, das gar
+// kein Land ist, ist alles richtig gelaufen.
+$audit['most_frequent_unmapped_countries'] = mostFrequentValues(
+    $unmappedCountryCounts,
+    10
+);
+
+$audit['output_rows'] = count($rankingRows);
+$audit['output_country_rows'] = count($countryRows);
+
+// Der Datenvertrag dieses Schritts. Neben den Daten reisen drei Dinge mit:
+// die Fragen, die Regeln, nach denen gefiltert wurde, und `limits` – der Satz,
+// der verhindert, dass aus einer Häufigkeit eine Risikoaussage wird.
+// Diesen Satz später in der Story sichtbar lassen.
+return [
+    'questions' => [
+        'In welchen Ländern wurden die meisten Vorfälle erfasst?',
+        'Welche identifizierte Hai-Kategorie kommt am häufigsten vor?',
+        'Bei welcher Aktivitätsgruppe wurden die meisten Vorfälle erfasst?',
+    ],
+    'limits' => 'Häufigkeiten im GSAF-Datensatz; keine Aussage über Risiko oder Kausalität. '
+        . 'Länder mit langer Küste, vielen Badegästen und guter Erfassung stehen '
+        . 'weiter oben – das ist kein Mass für Gefahr.',
+    'rules' => [
+        'year_from' => $yearFrom,
+        'year_to' => $yearTo,
+        'incident_type' => 'Unprovoked',
+        'top_n' => $topN,
+    ],
+    'data' => $rankingRows,
+    'countries' => $countryRows,
+    'audit' => $audit,
+];

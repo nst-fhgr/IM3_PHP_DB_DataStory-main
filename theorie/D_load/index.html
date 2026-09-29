@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IM3 – Load</title>
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- FHGR Foliendesign (gemeinsam fuer alle Foliensaetze) -->
+  <link rel="stylesheet" href="../_foliendesign/fhgr-slides.css">
+
+  <!-- Sonderregeln nur fuer diesen Foliensatz -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============ 1 Titel ============ -->
+      <section id="title" class="title-slide" data-state="is-title">
+        <h1>Load</h1>
+        <div class="rule"></div>
+        <p>Interaktive Medien 3</p>
+        <p class="sub">nick.schneeberger@fhgr.ch</p>
+      </section>
+
+      <!-- ============ 2 Inhalt ============ -->
+      <section id="inhalt">
+        <h2>Inhalt</h2>
+        <div class="content">
+          <ul class="text-xl">
+            <li>Was eine Datenbank ist</li>
+            <li>Das Datenmodell: von der Zeile zur Tabelle</li>
+            <li>SQL: die Sprache der Datenbank</li>
+            <li>PDO: die Brücke von PHP zur Datenbank</li>
+            <li>Was beim zweiten Aufruf passiert</li>
+            <li>Daten automatisch sammeln mit Cronjobs</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 3 ============ -->
+      <section id="wo-wir-stehen">
+        <h2>Wo wir stehen</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step"><span class="flow-title">Extract</span><span class="flow-sub">Daten hereinholen</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Transform</span><span class="flow-sub">Regeln anwenden</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">Load</span><span class="flow-sub">in die Datenbank</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Unload</span><span class="flow-sub">JSON-Endpunkt</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Chart.js</span><span class="flow-sub">Story</span></div>
+          </div>
+          <ul class="list-tight mt-1">
+            <li><strong>Extract</strong> hat beantwortet: Woher kommen die Daten, und wie lesen wir sie?</li>
+            <li><strong>Transform</strong> hat beantwortet: Welche Daten brauchen wir für unsere Frage, was bedeuten sie, und in welche Form bringen wir sie?</li>
+            <li><strong>Load</strong> beantwortet: Wie kommen sie an einen Ort, an dem sie bleiben?</li>
+          </ul>
+          <p class="mt-1">Bisher leben die 258 Datensätze nur, solange das Skript läuft.</p>
+          <div class="callout callout-blue">
+            <p>Wir bauen heute den Ort und den Weg dorthin.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4 Trenner ============ -->
+      <section id="divider-datenbank" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span>Transform<span class="sep">→</span><span class="is-here">Load</span><span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Was ist eine Datenbank?</h1>
+      </section>
+
+      <!-- ============ 5 ============ -->
+      <section id="warum-nicht-datei">
+        <h2>Warum nicht einfach eine Datei?</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">Eine JSON-Datei zu speichern wäre möglich.</p>
+              <ul class="list-tight text-sm">
+                <li>Für 258 Zeilen funktioniert das sogar gut</li>
+                <li>Ihr könnt sie öffnen und lesen</li>
+                <li>Sie liegt einfach im Ordner</li>
+              </ul>
+            </div>
+            <div>
+              <p class="list-intro">Das ist mühsam:</p>
+              <ul class="list-tight text-sm">
+                <li>Eine einzelne Stadt heraussuchen müsst ihr selbst programmieren</li>
+                <li>Eine Zeile ergänzen heisst: die ganze Datei neu schreiben</li>
+                <li>Zwei Abrufe gleichzeitig können die Datei zerstören</li>
+                <li>Sortieren und Zählen macht niemand für euch</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Eine Datenbank ist ein Programm, das genau diese Arbeit übernimmt.</p>
+          </div>
+          <p class="text-sm mt-1">Sie beantwortet Fragen an die Daten, statt nur Text aufzubewahren.</p>
+        </div>
+      </section>
+
+      <!-- ============ 6 ============ -->
+      <section id="tabelle">
+        <h2>Eine Tabelle ist eine Liste mit festen Spalten</h2>
+        <div class="content">
+          <span class="code-label">Tabelle heat_summers</span>
+          <table class="mini-table">
+            <tr><th>id</th><th>city</th><th>year</th><th>measurement_days</th><th>hot_days</th><th>max_temperature_c</th></tr>
+            <tr><td>1</td><td>Bern</td><td>2022</td><td>92</td><td>14</td><td>34.6</td></tr>
+            <tr><td>2</td><td>Bern</td><td>2023</td><td>92</td><td>12</td><td>36.3</td></tr>
+            <tr><td>3</td><td>Chur</td><td>2023</td><td>92</td><td>14</td><td>35.4</td></tr>
+          </table>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;" class="mt-2">
+            <ul class="list-tight text-sm">
+              <li>Eine <strong>Zeile</strong> ist ein Datensatz</li>
+              <li>Eine <strong>Spalte</strong> ist ein Feld dieses Datensatzes</li>
+              <li>Alle Zeilen haben dieselben Spalten</li>
+            </ul>
+            <ul class="list-tight text-sm">
+              <li>Eine <strong>Datenbank</strong> enthält mehrere Tabellen</li>
+              <li>Jede Spalte hat einen festen Datentyp</li>
+              <li>Diese Struktur heisst <strong>Schema</strong></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 7 Split ============ -->
+      <section id="relational" class="split-slide">
+        <div class="split-half split-good">
+          <h2>Relational</h2>
+          <p class="text-sm list-intro">Daten stehen in Tabellen und sind untereinander verknüpft.</p>
+          <ul class="list-tight text-sm">
+            <li>Die Spalten stehen vorher fest</li>
+            <li>Abgefragt wird mit SQL</li>
+            <li>MySQL, MariaDB, PostgreSQL, SQLite</li>
+          </ul>
+          <p class="text-sm mt-1">Passt, wenn alle Datensätze gleich gebaut sind.</p>
+        </div>
+        <div class="split-half split-bad">
+          <h2>Nicht relational</h2>
+          <p class="text-sm list-intro">Daten stehen als einzelne Dokumente nebeneinander.</p>
+          <ul class="list-tight text-sm">
+            <li>Jedes Dokument darf andere Felder haben</li>
+            <li>Jedes System hat seine eigene Abfragesprache</li>
+            <li>MongoDB, Firebase, Redis</li>
+          </ul>
+          <p class="text-sm mt-1">Passt, wenn die Struktur offen bleiben muss.</p>
+        </div>
+      </section>
+
+      <!-- ============ 8 ============ -->
+      <section id="was-wir-benutzen">
+        <h2>Womit wir arbeiten</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Bis jetzt: auf eurem Rechner</h3>
+              <ul class="list-tight text-sm">
+                <li>PHP lief mit <code>php -S localhost:8000</code></li>
+                <li>Eine Datenbank gab es noch nicht</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Ab jetzt: auf dem Webserver</h3>
+              <ul class="list-tight text-sm">
+                <li>Dateien und Datenbank liegen bei Hostpoint</li>
+                <li>PhpStorm lädt jede gespeicherte Datei per FTP hoch</li>
+                <li>Dort läuft MariaDB, eine nahe Verwandte von MySQL</li>
+                <li>phpMyAdmin öffnet ihr über das Control Panel</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Ihr öffnet die Seiten ab jetzt über eure Domain und nicht mehr über localhost.</p>
+          </div>
+          <p class="text-sm mt-1">Die Zugangsdaten zur Datenbank stehen in einer eigenen Datei.</p>
+        </div>
+      </section>
+
+      <!-- ============ 9 Trenner ============ -->
+      <section id="divider-datenmodell" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span>Transform<span class="sep">→</span><span class="is-here">Load</span><span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Das Datenmodell</h1>
+        <p>Von der Zeile im Resultat zur Tabelle in der Datenbank</p>
+      </section>
+
+      <!-- ============ 10 ============ -->
+      <section id="zeile-wird-zeile">
+        <h2>Eine Zeile bleibt eine Zeile</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">Resultat aus dem Transform</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-json">
+{
+  "city": "Bern",
+  "year": 2023,
+  "measurement_days": 92,
+  "hot_days": 12,
+  "max_temperature_c": 36.3
+}
+              </code></pre>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">Zeile in der Datenbank</span>
+              <table class="mini-table">
+                <tr><th>Spalte</th><th>Wert</th></tr>
+                <tr><td>city</td><td>Bern</td></tr>
+                <tr><td>year</td><td>2023</td></tr>
+                <tr><td>measurement_days</td><td>92</td></tr>
+                <tr><td>hot_days</td><td>12</td></tr>
+                <tr><td>max_temperature_c</td><td>36.3</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Die Untersuchungseinheit aus dem Transform wird zur Zeile in der Tabelle.</p>
+          </div>
+          <p class="text-sm mt-1">Bei uns ist das eine Stadt in einem Sommer.</p>
+        </div>
+      </section>
+
+      <!-- ============ 11 ============ -->
+      <section id="datentypen">
+        <h2>Jede Spalte bekommt einen Datentyp</h2>
+        <div class="content">
+          <table>
+            <tr>
+              <th style="width: 26%;">Typ</th>
+              <th style="width: 34%;">Wofür</th>
+              <th>Bei uns</th>
+            </tr>
+            <tr><td><code>INT</code></td><td>ganze Zahlen</td><td><code>id</code></td></tr>
+            <tr><td><code>SMALLINT</code></td><td>kleine ganze Zahlen</td><td><code>year</code>, <code>hot_days</code></td></tr>
+            <tr><td><code>DECIMAL(4,1)</code></td><td>Kommazahl mit fester Genauigkeit</td><td><code>max_temperature_c</code></td></tr>
+            <tr><td><code>VARCHAR(80)</code></td><td>Text bis zu einer Höchstlänge</td><td><code>city</code></td></tr>
+            <tr><td><code>DATE</code>, <code>DATETIME</code></td><td>Datum und Zeitpunkt</td><td>in vielen Projekten</td></tr>
+            <tr><td><code>BOOLEAN</code></td><td>ja oder nein</td><td>in vielen Projekten</td></tr>
+          </table>
+          <div class="callout callout-orange mt-1">
+            <p>Der Typ ist eine Zusage: Was nicht hineinpasst, bleibt draussen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 12 ============ -->
+      <section id="primaerschluessel">
+        <h2>Der Primärschlüssel</h2>
+        <div class="content">
+          <p class="list-intro">Jede Zeile braucht eine eindeutige Nummer, an der man genau sie erkennt.</p>
+          <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+id INT AUTO_INCREMENT PRIMARY KEY
+          </code></pre>
+          <ul class="list-tight">
+            <li><code>PRIMARY KEY</code> heisst: Dieser Wert kommt kein zweites Mal vor</li>
+            <li><code>AUTO_INCREMENT</code> heisst: Die Datenbank vergibt die Nummer selbst</li>
+            <li>Ihr schreibt diese Spalte beim Einfügen deshalb nie mit</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Ohne Primärschlüssel könnt ihr eine einzelne Zeile später nicht sicher ansprechen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 13 ============ -->
+      <section id="primaerschluessel-beispiel">
+        <h2>Die <code>id</code> in unseren Zeilen</h2>
+        <div class="content">
+          <span class="code-label">drei Zeilen aus heat_summers</span>
+          <div style="max-width: 620px;">
+            <table class="mini-table">
+              <tr><th>id</th><th>city</th><th>year</th><th>hot_days</th></tr>
+              <tr><td>1</td><td>Bern</td><td>2022</td><td>14</td></tr>
+              <tr><td>2</td><td>Bern</td><td class="is-marked">2023</td><td>12</td></tr>
+              <tr><td>3</td><td>Chur</td><td class="is-marked">2023</td><td>14</td></tr>
+            </table>
+          </div>
+          <ul class="list-tight mt-2">
+            <li>Das Jahr 2023 steht zweimal da, die <code>id</code> nie</li>
+            <li>Stadt und Jahr zusammen wären auch eindeutig, aber umständlich</li>
+            <li>Mit <code>WHERE id = 2</code> erwischt ihr genau eine Zeile</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Die Nummer bedeutet nichts, sie zeigt nur auf genau diese Zeile.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 14 ============ -->
+      <section id="redundanz">
+        <h2>«Bern» steht 86-mal da</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <span class="code-label">alles in einer Tabelle</span>
+              <table class="mini-table">
+                <tr><th>city</th><th>year</th><th>hot_days</th></tr>
+                <tr><td class="is-marked">Bern</td><td>2021</td><td>0</td></tr>
+                <tr><td class="is-marked">Bern</td><td>2022</td><td>14</td></tr>
+                <tr><td class="is-marked">Bern</td><td>2023</td><td>12</td></tr>
+                <tr><td>…</td><td>…</td><td>…</td></tr>
+              </table>
+            </div>
+            <div>
+              <p class="list-intro">Drei Städte, 86 Jahre, 258 Zeilen.</p>
+              <ul class="list-tight text-sm">
+                <li>Jeder Stadtname steht 86-mal in der Tabelle</li>
+                <li>Ein Tippfehler erzeugt eine vierte Stadt, die es nicht gibt</li>
+                <li>Eine Umbenennung müsstet ihr 86-mal machen</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Wiederholte Werte sind hier kein Platzproblem, sondern ein Fehlerrisiko.</p>
+            <p>Bei sehr grossen Datenmengen werden sie irgendwann auch ein Platzproblem.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 15 ============ -->
+      <section id="zwei-tabellen">
+        <h2>Darum: Zwei Tabellen und ein Fremdschlüssel</h2>
+        <div class="content">
+          <div class="erm">
+            <div class="erm-table">
+              <div class="erm-name">cities</div>
+              <div class="erm-col"><span>id</span><span class="erm-key">PK</span></div>
+              <div class="erm-col"><span>name</span><span class="erm-key">VARCHAR(80)</span></div>
+            </div>
+            <div class="erm-link">
+              <span class="erm-card is-left">1</span>
+              <span class="erm-card is-right">n</span>
+            </div>
+            <div class="erm-table">
+              <div class="erm-name">heat_summers</div>
+              <div class="erm-col"><span>id</span><span class="erm-key">PK</span></div>
+              <div class="erm-col"><span>city_id</span><span class="erm-key">FK</span></div>
+              <div class="erm-col"><span>year</span><span class="erm-key">SMALLINT</span></div>
+              <div class="erm-col"><span>measurement_days</span><span class="erm-key">SMALLINT</span></div>
+              <div class="erm-col"><span>hot_days</span><span class="erm-key">SMALLINT</span></div>
+              <div class="erm-col"><span>max_temperature_c</span><span class="erm-key">DECIMAL(4,1)</span></div>
+            </div>
+          </div>
+          <ul class="list-tight text-sm mt-1">
+            <li>Der Stadtname steht jetzt genau einmal in <code>cities</code></li>
+            <li><code>city_id</code> verweist auf die <code>id</code> in <code>cities</code> und heisst deshalb <strong>Fremdschlüssel</strong></li>
+            <li>Gelesen wird die Linie als: eine Stadt hat viele Sommer</li>
+            <li>Jeder Sommer gehört aber nur zu einer Stadt</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 16 ============ -->
+      <section id="erm-light">
+        <h2>So plant ihr euer eigenes Modell</h2>
+        <div class="content">
+          <p class="list-intro">Vier Fragen, und zwar auf Papier und vor dem ersten SQL-Befehl.</p>
+          <ul class="list-tight">
+            <li>Was bedeutet eine Zeile in euren Daten?</li>
+            <li>Welche Felder hat sie, und welchen Datentyp hat jedes davon?</li>
+            <li>Welcher Wert wiederholt sich in fast jeder Zeile?</li>
+            <li>Woran erkennt ihr eine einzelne Zeile eindeutig?</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Der wiederholte Wert ist der Kandidat für die zweite Tabelle.</p>
+          </div>
+          <p class="text-sm mt-1">Mehr als zwei Tabellen braucht in diesem Kurs kein Projekt – ausser ihr
+            kombiniert mehrere Datensätze.</p>
+        </div>
+      </section>
+
+      <!-- ============ 17 ============ -->
+      <section id="eine-tabelle-reicht">
+        <h2>Wann eine Tabelle genügt</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Eine Tabelle</h3>
+              <ul class="list-tight text-sm">
+                <li>Kein Wert wiederholt sich auffällig</li>
+                <li>Alle Felder beschreiben dieselbe Sache</li>
+                <li>Beispiel: Messwerte einer einzigen Station</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Zwei Tabellen</h3>
+              <ul class="list-tight text-sm">
+                <li>Ein Name oder eine Kategorie wiederholt sich ständig</li>
+                <li>Diese Sache hat eigene Felder wie Koordinaten oder Farbe</li>
+                <li>Beispiel: Städte und ihre Messungen</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Eine schlecht geschnittene zweite Tabelle kostet mehr, als sie einbringt.</p>
+          </div>
+          <p class="text-sm mt-1">Im Zweifel klein anfangen und die Aufteilung begründen können.</p>
+        </div>
+      </section>
+
+      <!-- ============ 18 Trenner ============ -->
+      <section id="divider-sql" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span>Transform<span class="sep">→</span><span class="is-here">Load</span><span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>SQL</h1>
+        <p>Die Sprache, in der man mit einer Datenbank redet</p>
+      </section>
+
+      <!-- ============ 19 ============ -->
+      <section id="sql-sprache">
+        <h2>Vier Befehle reichen für alles</h2>
+        <div class="content">
+          <table>
+            <tr>
+              <th style="width: 22%;">Befehl</th>
+              <th style="width: 38%;">Was er tut</th>
+              <th>Wo wir ihn brauchen</th>
+            </tr>
+            <tr><td><code>INSERT</code></td><td>schreibt eine Zeile hinein</td><td>heute, in <code>load.php</code></td></tr>
+            <tr><td><code>SELECT</code></td><td>holt Zeilen heraus</td><td>heute zum Kontrollieren, später in <code>unload.php</code></td></tr>
+            <tr><td><code>UPDATE</code></td><td>ändert vorhandene Zeilen</td><td>selten</td></tr>
+            <tr><td><code>DELETE</code></td><td>löscht Zeilen</td><td>zum Aufräumen</td></tr>
+          </table>
+          <p class="mt-1">SQL ist eine eigene Sprache und hat mit PHP nichts zu tun.</p>
+          <p>Wir schicken sie als Text an die Datenbank und bekommen ein Resultat zurück.</p>
+        </div>
+      </section>
+
+      <!-- ============ 20 ============ -->
+      <section id="create-table">
+        <h2>Die Tabellen anlegen</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+CREATE TABLE cities (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL UNIQUE
+);
+
+CREATE TABLE heat_summers (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  city_id           INT NOT NULL,
+  year              SMALLINT NOT NULL,
+  measurement_days  SMALLINT NOT NULL,
+  hot_days          SMALLINT NOT NULL,
+  max_temperature_c DECIMAL(4,1),
+  FOREIGN KEY (city_id) REFERENCES cities(id)
+);
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li><code>NOT NULL</code> verlangt einen Wert, <code>UNIQUE</code> verbietet Wiederholungen</li>
+            <li><code>max_temperature_c</code> darf leer bleiben und ist dann <code>NULL</code></li>
+            <li>Dasselbe könnt ihr in phpMyAdmin auch zusammenklicken</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 21 ============ -->
+      <section id="insert">
+        <h2><code>INSERT</code> schreibt eine Zeile</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+INSERT INTO cities (name)
+VALUES ('Bern');
+
+INSERT INTO heat_summers (city_id, year, measurement_days, hot_days, max_temperature_c)
+VALUES (1, 2023, 92, 12, 36.3);
+          </code></pre>
+          <ul class="list-tight">
+            <li>Zuerst die Spalten, dann in derselben Reihenfolge die Werte</li>
+            <li>Text steht in einfachen Anführungszeichen, Zahlen stehen ohne</li>
+            <li>Die Spalte <code>id</code> fehlt, weil die Datenbank sie selbst vergibt</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>258-mal dieser Befehl mit anderen Werten – das ist der ganze Ladevorgang.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 22 ============ -->
+      <section id="select-kontrolle">
+        <h2><code>SELECT</code> zum Nachschauen</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+SELECT * FROM heat_summers;
+
+SELECT year, hot_days
+FROM heat_summers
+WHERE city_id = 1
+ORDER BY year;
+              </code></pre>
+            </div>
+            <div>
+              <ul class="list-tight text-sm">
+                <li>Der Stern holt alle Spalten</li>
+                <li><code>WHERE</code> wählt Zeilen aus</li>
+                <li><code>ORDER BY</code> sortiert das Resultat</li>
+              </ul>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Aus diesem Befehl wird später der JSON-Endpunkt für das Frontend.</p>
+          <div class="callout callout-blue">
+            <p>Heute braucht ihr das nur, um zu prüfen, ob das Laden geklappt hat.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 23 ============ -->
+      <section id="update-delete">
+        <h2><code>UPDATE</code> und <code>DELETE</code></h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+UPDATE heat_summers SET hot_days = 13 WHERE id = 42;
+
+DELETE FROM heat_summers WHERE id = 42;
+
+DELETE FROM heat_summers;
+          </code></pre>
+          <ul class="list-tight">
+            <li>Beide wirken auf alle Zeilen, auf die die Bedingung zutrifft</li>
+            <li>Ohne <code>WHERE</code> trifft sie auf jede Zeile zu</li>
+            <li>Die dritte Zeile leert also die ganze Tabelle</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p>Es gibt keine Rückfrage und kein Rückgängig.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 24 ============ -->
+      <section id="phpmyadmin">
+        <h2>phpMyAdmin</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">phpMyAdmin ist eine Oberfläche im Browser für eure Datenbank.</p>
+              <ul class="list-tight text-sm">
+                <li>Tabellen anlegen, Daten ansehen, Zeilen löschen</li>
+                <li>Jede Aktion zeigt euch das SQL dazu an</li>
+                <li>Der Reiter «SQL» nimmt eigene Befehle entgegen</li>
+              </ul>
+            </div>
+            <div>
+              <div class="callout callout-blue">
+                <p>Was ihr klickt, könnt ihr also auch lesen und lernen.</p>
+              </div>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Angelegt wird die Tabelle einmal von Hand.</p>
+            <p>Gefüllt wird sie danach nur noch von <code>load.php</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 25 Trenner ============ -->
+      <section id="divider-pdo" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span>Transform<span class="sep">→</span><span class="is-here">Load</span><span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>PDO</h1>
+        <p>Wie PHP mit der Datenbank spricht</p>
+      </section>
+
+      <!-- ============ 26 ============ -->
+      <section id="pdo-bruecke">
+        <h2>PHP spricht kein SQL</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step"><span class="flow-title">load.php</span><span class="flow-sub">unser PHP-Skript</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">PDO</span><span class="flow-sub">schickt SQL hin und Resultate zurück</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">MariaDB</span><span class="flow-sub">führt SQL aus</span></div>
+          </div>
+          <ul class="list-tight mt-1">
+            <li>PDO ist fest in PHP eingebaut und heisst PHP Data Objects</li>
+            <li>Wir übergeben SQL als Text und bekommen PHP-Arrays zurück</li>
+            <li>Für MySQL, MariaDB, PostgreSQL und SQLite funktioniert es gleich</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>PDO ist ein Helfer wie <code>fetchJson()</code> beim Extract, nur für Datenbanken statt APIs.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 27 ============ -->
+      <section id="verbindung">
+        <h2>Die Verbindung aufbauen</h2>
+        <div class="content">
+          <div class="code-pair">
+            <div>
+              <span class="code-label">config.php – einmal im Hauptordner</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+&lt;?php
+$host     = 'konto.mysql.db.hostpoint.ch';
+$dbname   = 'konto_im3';
+$username = 'konto_im3';
+$password = '…';
+$dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
+              </code></pre>
+            </div>
+            <div>
+              <span class="code-label">load.php – irgendwo im Kursordner</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+// drei Ordner nach oben zum Hauptordner
+require __DIR__ . '/../../../config.php';
+
+$pdo = new PDO($dsn, $username, $password, $options);
+              </code></pre>
+            </div>
+          </div>
+          <ul class="list-tight text-sm mt-1">
+            <li>Es gibt genau eine <code>config.php</code> für alle Übungen</li>
+            <li>Der DSN sagt PDO, welche Datenbank wo liegt</li>
+            <li>Host, Datenbank und Benutzer beginnen bei Hostpoint mit dem Kontonamen</li>
+          </ul>
+          <div class="callout callout-red">
+            <p class="text-lg"><strong>config.php</strong> enthält euer Passwort und darf nie auf GitHub landen.</p>
+            <p class="text-sm">Tragt die Datei in <code>.gitignore</code> ein, bevor ihr das erste Mal committet.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 28 ============ -->
+      <section id="config-nicht-ins-git">
+        <h2>Zugangsdaten gehören nicht ins Repository</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">So arbeitet das Team damit.</p>
+              <ul class="list-tight text-sm">
+                <li><code>config.php</code> steht in <code>.gitignore</code></li>
+                <li>Eine <code>config.template.php</code> ohne Werte liegt im Repository</li>
+                <li>Jede Person kopiert sie und trägt ihre eigenen Werte ein</li>
+              </ul>
+            </div>
+            <div>
+              <span class="code-label">.gitignore</span>
+              <div class="output">config.php</div>
+              <div class="callout callout-orange">
+                <p>Auch KI-Werkzeuge bekommen diese Datei nicht zu sehen.</p>
+              </div>
+            </div>
+          </div>
+          <div class="callout callout-red">
+            <p class="text-lg">Ein Passwort, das einmal in einem Commit steht, bleibt in der Historie stehen.</p>
+            <p class="text-sm">Wer es trotzdem hochgeladen hat, ändert sofort das Passwort.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 29 ============ -->
+      <section id="prepare-execute">
+        <h2>Erst vorbereiten, dann ausführen</h2>
+        <div class="content">
+          <p class="list-intro text-sm">Werte schreiben wir nie direkt in den SQL-Text.</p>
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$insertSummer = $pdo-&gt;prepare(
+    'INSERT INTO heat_summers (city_id, year, measurement_days, hot_days, max_temperature_c)
+     VALUES (:city_id, :year, :measurement_days, :hot_days, :max_temperature_c)'
+);
+
+$insertSummer-&gt;execute([
+    'city_id' =&gt; 1,
+    'year' =&gt; 2023,
+    'measurement_days' =&gt; 92,
+    'hot_days' =&gt; 12,
+    'max_temperature_c' =&gt; 36.3,
+]);
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li>Die Namen mit Doppelpunkt sind Platzhalter und keine Werte</li>
+            <li><code>prepare</code> schickt den Bauplan, <code>execute</code> schickt die Werte</li>
+            <li>Die Datenbank hält beides getrennt, deshalb kann kein Wert zu Code werden</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 30 ============ -->
+      <section id="schleife">
+        <h2>Einmal vorbereiten, 258-mal ausführen</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+foreach ($rows as $row) {
+    $insertSummer-&gt;execute([
+        'city_id'           =&gt; $cityIds[$row['city']],
+        'year'              =&gt; $row['year'],
+        'measurement_days'  =&gt; $row['measurement_days'],
+        'hot_days'          =&gt; $row['hot_days'],
+        'max_temperature_c' =&gt; $row['max_temperature_c'],
+    ]);
+}
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li><code>prepare</code> steht vor der Schleife und läuft genau einmal</li>
+            <li><code>execute</code> steht in der Schleife und läuft für jede Zeile</li>
+            <li>Das ist schneller und lesbarer als 258 zusammengebaute Befehle</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Die Werte kommen unverändert aus dem Transform.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 31 ============ -->
+      <section id="fremdschluessel-fuellen">
+        <h2>Woher kommt die <code>city_id</code>?</h2>
+        <div class="content">
+          <p class="list-intro">Im Transform steht «Bern», in der Tabelle braucht es die Nummer von Bern.</p>
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$findCity-&gt;execute([$city]);
+$id = $findCity-&gt;fetchColumn();
+
+if ($id === false) {
+    $insertCity-&gt;execute([$city]);
+    $id = $pdo-&gt;lastInsertId();
+}
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li><code>fetchColumn</code> holt den ersten Wert der ersten gefundenen Zeile</li>
+            <li>Ohne Treffer liefert es <code>false</code>, und dann legen wir die Stadt an</li>
+            <li><code>lastInsertId</code> gibt die Nummer zurück, die die Datenbank gerade vergeben hat</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 32 ============ -->
+      <section id="zweimal-laden">
+        <h2>Was beim zweiten Aufruf passiert</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">nach dem ersten Aufruf</span>
+              <div class="output">258 Zeilen</div>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nach dem zweiten Aufruf</span>
+              <div class="output">516 Zeilen</div>
+            </div>
+          </div>
+          <ul class="list-tight text-sm mt-1">
+            <li><code>INSERT</code> fragt nicht, ob es die Zeile schon gibt</li>
+            <li>Beim Entwickeln ruft ihr <code>load.php</code> zwanzigmal auf</li>
+            <li>Der Chart zeigt danach jeden Sommer doppelt</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p>Ein Ladeskript muss man mehrmals aufrufen können.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 33 ============ -->
+      <section id="zwei-muster">
+        <h2>Zwei Muster, je nach Datenquelle</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Stand neu schreiben</h3>
+              <p class="text-sm list-intro">Für einen historischen Datensatz, der jedes Mal vollständig kommt.</p>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$pdo-&gt;exec('DELETE FROM heat_summers');
+              </code></pre>
+              <p class="text-sm">Diese Zeile steht vor der Schleife.</p>
+            </div>
+            <div>
+              <h3>Dazuschreiben ohne Duplikate</h3>
+              <p class="text-sm list-intro">Für eine Live-Sammlung, die über Wochen wächst.</p>
+              <ul class="list-tight text-sm">
+                <li>Eine <code>UNIQUE</code>-Regel auf Zeitpunkt und Ort</li>
+                <li>Dazu <code>INSERT IGNORE</code> statt <code>INSERT</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Bei einer Live-Sammlung wäre Leeren fatal, weil die Vergangenheit nirgends sonst steht.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 34 ============ -->
+      <section id="fehler">
+        <h2>Wenn etwas schiefgeht</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$options = [
+    PDO::ATTR_ERRMODE            =&gt; PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE =&gt; PDO::FETCH_ASSOC,
+];
+          </code></pre>
+          <ul class="list-tight text-sm">
+            <li>Die erste Zeile sorgt dafür, dass Fehler laut abbrechen statt still zu scheitern</li>
+            <li>Die zweite lässt PDO Zeilen als assoziative Arrays zurückgeben</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Lest die Fehlermeldung von unten nach oben und sucht den Tabellen- oder Spaltennamen darin.</p>
+          </div>
+          <p class="text-sm mt-1">Die drei häufigsten Fehler sind Tippfehler im Spaltennamen, falsche
+            Zugangsdaten und ein Fremdschlüssel ohne passende Stadt.</p>
+        </div>
+      </section>
+
+      <!-- ============ 35 Trenner ============ -->
+      <section id="divider-cron" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span>Transform<span class="sep">→</span><span class="is-here">Load</span><span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Daten automatisch sammeln</h1>
+        <p>Cronjobs für Projekte mit Live-Daten</p>
+      </section>
+
+      <!-- ============ 36 ============ -->
+      <section id="cron-wer">
+        <h2>Wer einen Cronjob braucht</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Datensatz</h3>
+              <ul class="list-tight text-sm">
+                <li>Die Daten liegen vollständig vor</li>
+                <li>Bleibt der Datensatz gleich, läuft <code>load.php</code> ein einziges Mal</li>
+                <li>Erscheint er monatlich oder jährlich neu, holt ein Cronjob die neue Fassung</li>
+                <li>Beispiele: Landwirtschaftsflächen der Schweiz, SBB-Fahrplan</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Live-Sammlung</h3>
+              <ul class="list-tight text-sm">
+                <li>Die API zeigt nur den aktuellen Stand</li>
+                <li><code>load.php</code> muss regelmässig laufen</li>
+                <li>Ein Cronjob ist nötig</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Was nicht gesammelt wurde, lässt sich später nicht nachholen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 37 ============ -->
+      <section id="cron-was">
+        <h2>Ein Cronjob startet ein Skript nach Zeitplan</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step"><span class="flow-title">Zeitplan</span><span class="flow-sub">alle 15 Minuten</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">load.php</span><span class="flow-sub">Extract, Transform, Load</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Datenbank</span><span class="flow-sub">neue Zeilen kommen dazu</span></div>
+          </div>
+          <ul class="list-tight mt-1">
+            <li>Cron heisst das Programm, das die Zeitpläne auf dem Server abarbeitet</li>
+            <li>Der Server ruft das Skript selbst auf</li>
+            <li>Niemand muss dafür den Browser öffnen</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Läuft <code>load.php</code> alle 15 Minuten, darf kein Messwert doppelt gespeichert werden.</p>
+            <p>Das regelt die Datenbank: <code>UNIQUE</code> auf Zeitpunkt und Ort, dazu <code>INSERT IGNORE</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 38 ============ -->
+      <section id="cron-zeitplan">
+        <h2>Der Zeitplan hat fünf Felder</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <table>
+              <thead><tr><th>Feld</th><th>Werte</th></tr></thead>
+              <tbody>
+                <tr><td>Minute</td><td>0–59</td></tr>
+                <tr><td>Stunde</td><td>0–23</td></tr>
+                <tr><td>Tag im Monat</td><td>1–31</td></tr>
+                <tr><td>Monat</td><td>1–12</td></tr>
+                <tr><td>Wochentag</td><td>0–7, Sonntag ist 0 oder 7</td></tr>
+              </tbody>
+            </table>
+            <table>
+              <thead><tr><th>Zeitplan</th><th>Bedeutung</th></tr></thead>
+              <tbody>
+                <tr><td><code>*/15 * * * *</code></td><td>alle 15 Minuten</td></tr>
+                <tr><td><code>0 * * * *</code></td><td>zu jeder vollen Stunde</td></tr>
+                <tr><td><code>0 3 * * *</code></td><td>jeden Tag um 3 Uhr</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-sm mt-1">Ein <code>*</code> steht für «jeder Wert».</p>
+        </div>
+      </section>
+
+      <!-- ============ 39 ============ -->
+      <section id="crontab-guru">
+        <h2>crontab.guru übersetzt den Zeitplan</h2>
+        <div class="content">
+          <figure>
+            <img class="shot" src="bilder/crontab-guru.png"
+                 alt="crontab.guru mit dem Zeitplan */15 * * * * und der Übersetzung «At every 15th minute»">
+            <figcaption><a href="https://crontab.guru">crontab.guru</a> – Zeitplan eintippen, Übersetzung und nächsten Lauf ablesen.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ============ 40 ============ -->
+      <section id="cron-hostpoint">
+        <h2>Den Cronjob bei Hostpoint anlegen</h2>
+        <div class="content">
+          <ol class="text-sm">
+            <li>Im Control Panel unter «Advanced» den Cronjobs Manager öffnen</li>
+            <li>Die fünf Felder für den Zeitplan ausfüllen</li>
+            <li>Als Befehl den Aufruf von <code>load.php</code> eintragen</li>
+          </ol>
+          <span class="code-label mt-1">Befehl – ruft load.php über eure Domain auf</span>
+          <pre class="code-sm"><code data-trim data-noescape class="language-bash">
+/usr/local/bin/wget -q -O /dev/null 'https://eure-domain.ch/load.php'
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li>Gibt der Befehl etwas aus, schickt Hostpoint eine E-Mail</li>
+            <li><code>-q -O /dev/null</code> unterdrückt jede Ausgabe</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Prüft am nächsten Tag in phpMyAdmin, ob neue Zeilen dazugekommen sind.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 41 Schluss ============ -->
+      <section id="schluss">
+        <h2>Zum Mitnehmen</h2>
+        <div class="content" style="justify-content: center;">
+          <p class="big-statement">Der Datenvertrag aus dem Transform ist bereits<br>eine gute Grundlage für euer Datenmodell.</p>
+          <p class="mt-2"><span class="next-step">Nächster Schritt: eure eigenen Daten in die Datenbank schreiben</span></p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: true,
+      progress: true,
+      slideNumber: 'c',
+      hash: true,
+      transition: 'slide',
+      center: false,
+      plugins: [ RevealHighlight ]
+    });
+  </script>
+</body>
+</html>

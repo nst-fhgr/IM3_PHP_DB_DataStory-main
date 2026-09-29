@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IM3 – Unload</title>
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Font Awesome fuer Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- FHGR Foliendesign und Sonderregeln fuer diesen Foliensatz -->
+  <link rel="stylesheet" href="../_foliendesign/fhgr-slides.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============ 1 Titel ============ -->
+      <section id="title" class="title-slide" data-state="is-title">
+        <h1>Unload</h1>
+        <div class="rule"></div>
+        <p>Von der Datenbank zum JSON-Endpunkt</p>
+        <p class="sub">nick.schneeberger@fhgr.ch</p>
+      </section>
+
+      <!-- ============ 2 Inhalt ============ -->
+      <section id="inhalt">
+        <h2>Inhalt</h2>
+        <div class="content">
+          <ul class="text-xl">
+            <li>Der Datenvertrag: was der Endpunkt liefern muss</li>
+            <li>In der Datenbank lesen: <code>SELECT</code>, <code>JOIN</code> und PDO</li>
+            <li>Als JSON antworten: Header und <code>json_encode</code></li>
+            <li>Leere Resultate und Fehler beantworten</li>
+            <li>Mit <code>$_GET</code> filtern</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 3 ============ -->
+      <section id="wo-wir-stehen">
+        <h2>Wo wir stehen</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step"><span class="flow-title">Extract</span><span class="flow-sub">Quellen lesen</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Transform</span><span class="flow-sub">Datenvertrag</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Load</span><span class="flow-sub">Daten speichern</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Datenbank</span><span class="flow-sub">258 Zeilen</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">Unload</span><span class="flow-sub">JSON-Endpunkt</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Chart.js</span><span class="flow-sub">Story</span></div>
+          </div>
+          <div class="callout callout-blue mt-2">
+            <p>Die Daten liegen bereits richtig in der Datenbank.</p>
+            <p>Jetzt liefern wir genau die vereinbarte Form an das Frontend.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 4 ============ -->
+      <section id="was-ist-unload">
+        <h2>Was bedeutet «Unload»?</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 40px; align-items: stretch;">
+            <div class="definition-card">
+              <span class="eyebrow">Unsere Kursbezeichnung</span>
+              <p class="text-2xl">Daten aus der Datenbank lesen und als JSON ausgeben.</p>
+            </div>
+            <div>
+              <ul class="list-tight">
+                <li>ETL endet normalerweise beim Laden</li>
+                <li>Unser Projekt braucht danach einen Weg zurück ins Frontend</li>
+                <li><code>unload.php</code> ist dieser Weg</li>
+                <li>Die Datei liefert Daten und kein HTML</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-gray is-bottom">
+            <p>«Unload» ist hier ein praktischer Kursbegriff und kein zusätzlicher Buchstabe in ETL.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 5 ============ -->
+      <section id="request-response">
+        <h2>Der Browser fragt, PHP antwortet mit JSON</h2>
+        <div class="content">
+          <div class="roundtrip">
+            <div class="rt-actor">
+              <span class="rt-title">Browser oder <code>fetch()</code></span>
+              <span class="rt-sub">braucht Daten</span>
+            </div>
+            <div class="rt-exchange">
+              <div class="rt-line">
+                <span class="rt-tag">Anfrage</span>
+                <span class="rt-payload">GET /unload.php?city=Bern</span>
+                <span class="rt-arrow">→</span>
+              </div>
+              <div class="rt-line rt-response">
+                <span class="rt-arrow">←</span>
+                <span class="rt-tag">Antwort</span>
+                <span class="rt-payload">[{"city":"Bern", …}]</span>
+              </div>
+            </div>
+            <div class="rt-actor is-active">
+              <span class="rt-title">unload.php</span>
+              <span class="rt-sub">liest die Datenbank</span>
+            </div>
+          </div>
+          <p class="text-lg mt-2">Der Browser bekommt am Ende nur JSON – hergestellt hat es unser PHP.</p>
+          <div class="callout callout-blue is-bottom has-footnote">
+            <p>Eine fremde API wie aare.guru macht genau dasselbe: URL rein, JSON raus.</p>
+            <p>Neu ist nur, dass jetzt ihr die Seite mit dem PHP seid.</p>
+          </div>
+        </div>
+        <div class="footnote">Beispiel zum Anschauen: aareguru.existenz.ch/v2018/current?city=bern</div>
+      </section>
+
+      <!-- ============ 6 ============ -->
+      <section id="vertrag-zuerst">
+        <h2>Der Datenvertrag kommt zuerst</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 36px; align-items: stretch;">
+            <pre class="code-sm"><code data-trim data-noescape class="language-json">
+[
+  {
+    "city": "Bern",
+    "year": 2023,
+    "measurement_days": 92,
+    "hot_days": 12,
+    "max_temperature_c": 36.3
+  }
+]
+            </code></pre>
+            <div>
+              <table class="contract-table">
+                <tr><th>Feld</th><th>Typ</th></tr>
+                <tr><td><code>city</code></td><td>String</td></tr>
+                <tr><td><code>year</code></td><td>Number</td></tr>
+                <tr><td><code>measurement_days</code></td><td>Number</td></tr>
+                <tr><td><code>hot_days</code></td><td>Number</td></tr>
+                <tr><td><code>max_temperature_c</code></td><td>Number oder <code>null</code></td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="callout callout-green mt-1">
+            <p>Der Endpunkt muss genau diese Form liefern, damit das Frontend ihn ohne Anpassung konsumieren kann.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 7 ============ -->
+      <section id="vier-bausteine">
+        <h2>Vier Bausteine ergeben den Endpunkt</h2>
+        <div class="content">
+          <div class="endpoint-steps">
+            <div><span class="step-number">1</span><strong>Verbinden</strong><small>PHP mit <code>config.php</code> und PDO</small></div>
+            <div><span class="step-number">2</span><strong>Lesen</strong><small>SQL mit <code>SELECT</code> und <code>JOIN</code></small></div>
+            <div><span class="step-number">3</span><strong>Antworten</strong><small>PHP mit Header und <code>json_encode</code></small></div>
+            <div><span class="step-number">4</span><strong>Filtern</strong><small>PHP mit <code>$_GET</code></small></div>
+          </div>
+          <div class="callout callout-blue is-bottom">
+            <p>Jeder Baustein löst genau eine Aufgabe und ist ein Kapitel dieses Foliensatzes.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 8 Trenner ============ -->
+      <section id="divider-lesen" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip"><span>Extract</span><span class="sep">→</span><span>Transform</span><span class="sep">→</span><span>Load</span><span class="sep">→</span><span>Datenbank</span><span class="sep">→</span><span class="is-here">Unload</span><span class="sep">→</span><span>Chart.js</span></div>
+        <p class="chapter-step">Bausteine 1 und 2</p>
+        <h1>Aus der Datenbank lesen</h1>
+        <p>Erst die SQL-Abfrage, dann PHP mit PDO</p>
+      </section>
+
+      <!-- ============ 9 ============ -->
+      <section id="zwei-tabellen-eine-liste">
+        <span class="slide-tag">Datenbank</span>
+        <h2>Zwei Tabellen werden eine flache Liste</h2>
+        <div class="content">
+          <div class="shape-bridge">
+            <div class="shape-side">
+              <span class="code-label">zwei Tabellen in der Datenbank</span>
+              <div class="mini-table">
+                <div class="mini-name">cities</div>
+                <div class="mini-row is-head"><span>id</span><span>name</span></div>
+                  <div class="mini-row"><span><mark>1</mark></span><span>Bern</span></div>
+                  <div class="mini-row"><span><mark>2</mark></span><span>Chur</span></div>
+                  <div class="mini-row"><span><mark>3</mark></span><span>Zürich</span></div>
+              </div>
+              <div class="mini-table">
+                <div class="mini-name">heat_summers</div>
+                <div class="mini-row is-head"><span>id</span><span>city_id</span><span>year</span><span>hot_days</span></div>
+                  <div class="mini-row"><span>1</span><span><mark>1</mark></span><span>2023</span><span>12</span></div>
+                  <div class="mini-row"><span>2</span><span><mark>1</mark></span><span>2024</span><span>14</span></div>
+                  <div class="mini-row"><span>3</span><span><mark>2</mark></span><span>2023</span><span>23</span></div>
+              </div>
+            </div>
+            <div class="shape-arrow">→</div>
+            <div class="shape-side">
+              <span class="code-label">ein Datensatz in der Antwort</span>
+              <div class="output shape-json">{
+  "city": <mark>"Bern"</mark>,
+  "year": 2023,
+  "hot_days": 12
+}</div>
+            </div>
+          </div>
+          <div class="callout callout-blue is-bottom">
+            <p>Das Frontend braucht den Namen «Bern» und nicht den Fremdschlüssel <code>city_id = 1</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 10 ============ -->
+      <section id="join-verbindet">
+        <span class="slide-tag">SQL</span>
+        <h2><code>JOIN</code> verbindet passende Zeilen</h2>
+        <div class="content">
+          <div class="join-demo">
+            <div class="join-table">
+              <span class="code-label">cities</span>
+              <div><code>1</code></div><div>Bern</div>
+              <div><code>2</code></div><div>Chur</div>
+            </div>
+            <div class="join-rule"><span><code>cities.id</code><br>=<br><code>heat_summers.city_id</code></span></div>
+            <div class="join-table is-wide">
+              <span class="code-label">heat_summers</span>
+              <div><code>1</code></div><div>2023</div><div>12 Hitzetage</div>
+              <div><code>2</code></div><div>2023</div><div>28 Hitzetage</div>
+            </div>
+          </div>
+          <p class="text-lg mt-2"><code>JOIN</code> sucht zu jeder Sommerzeile die Stadt mit derselben Nummer.</p>
+        </div>
+      </section>
+
+      <!-- ============ 11 ============ -->
+      <section id="select-join">
+        <span class="slide-tag">SQL</span>
+        <h2>Nur die vereinbarten Felder lesen</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-sql">
+SELECT
+    c.name AS city,
+    hs.year,
+    hs.measurement_days,
+    hs.hot_days,
+    hs.max_temperature_c
+FROM heat_summers AS hs
+JOIN cities AS c ON c.id = hs.city_id
+ORDER BY hs.year, c.name
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+              <li><code>SELECT *</code> bleibt weg, weil der Endpunkt nur vereinbarte Felder ausliefert</li>
+              <li><code>AS city</code> gibt dem Feld direkt den vereinbarten JSON-Namen</li>
+              <li><code>JOIN</code> ergänzt den Stadtnamen aus der zweiten Tabelle</li>
+              <li><code>ORDER BY</code> macht die Reihenfolge verlässlich</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 12 ============ -->
+      <section id="pdo-liest">
+        <span class="slide-tag">PHP</span>
+        <h2>PDO macht aus Zeilen ein PHP-Array</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 36px; align-items: stretch;">
+            <pre class="code-sm"><code data-trim data-noescape class="language-php">
+require __DIR__ . '/../../../config.php';
+
+$pdo = new PDO($dsn, $username, $password, $options);
+
+$sql = "SELECT
+            c.name AS city,
+            ...
+        ORDER BY hs.year, c.name";
+
+$statement = $pdo-&gt;prepare($sql);
+$statement-&gt;execute();
+
+$rows = $statement-&gt;fetchAll();
+            </code></pre>
+            <div class="box" style="display: flex; flex-direction: column; justify-content: center;">
+              <p class="text-lg"><code>$rows</code> ist eine Liste assoziativer Arrays.</p>
+              <p class="text-lg">Die Schlüssel kommen aus dem <code>SELECT</code>.</p>
+            </div>
+          </div>
+          <div class="callout callout-blue mt-1">
+            <p>Die Verbindung ist dieselbe wie beim Laden.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 13 Trenner ============ -->
+      <section id="divider-json" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip"><span>Extract</span><span class="sep">→</span><span>Transform</span><span class="sep">→</span><span>Load</span><span class="sep">→</span><span>Datenbank</span><span class="sep">→</span><span class="is-here">Unload</span><span class="sep">→</span><span>Chart.js</span></div>
+        <p class="chapter-step">Baustein 3</p>
+        <h1>Als JSON antworten</h1>
+        <p>Der Browser bekommt Daten und sonst nichts</p>
+      </section>
+
+      <!-- ============ 14 ============ -->
+      <section id="json-header">
+        <span class="slide-tag">PHP</span>
+        <h2>Die Antwort sagt, was sie enthält</h2>
+        <div class="content">
+          <pre class="code-lg"><code data-trim data-noescape class="language-php">
+header('Content-Type: application/json; charset=utf-8');
+          </code></pre>
+          <div class="flow mt-2">
+            <div class="flow-step"><span class="flow-title">Content-Type</span><span class="flow-sub">Format der Antwort</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">application/json</span><span class="flow-sub">gültiges JSON</span></div>
+            <div class="flow-arrow">+</div>
+            <div class="flow-step"><span class="flow-title">charset=utf-8</span><span class="flow-sub">Zürich bleibt Zürich</span></div>
+          </div>
+          <div class="callout callout-orange mt-2">
+            <p>Der Header muss vor jeder Ausgabe stehen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 15 ============ -->
+      <section id="json-encode">
+        <span class="slide-tag">PHP</span>
+        <h2><code>json_encode</code> macht aus dem Array JSON</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center;">
+            <div>
+              <span class="code-label">PHP-Array</span>
+              <div class="output">$data = [
+  ['city' =&gt; 'Bern', 'year' =&gt; 2023]
+];</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div>
+              <span class="code-label">JSON-Text</span>
+              <div class="output">[
+  {"city":"Bern","year":2023}
+]</div>
+            </div>
+          </div>
+          <pre class="code-lg mt-2"><code data-trim data-noescape class="language-php">
+echo json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+          </code></pre>
+          <ul class="list-tight text-sm mt-1">
+            <li><code>JSON_THROW_ON_ERROR</code> macht Kodierungsfehler sichtbar</li>
+            <li><code>JSON_UNESCAPED_UNICODE</code> hält Umlaute lesbar</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 16 Split ============ -->
+      <section id="nur-json" class="split-slide">
+        <div class="split-half split-bad">
+          <h2>Kein gültiges JSON</h2>
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+var_dump($rows);
+echo '&lt;h1&gt;Fertig&lt;/h1&gt;';
+echo json_encode($data);
+          </code></pre>
+          <div class="output">array(258) { ... }
+&lt;h1&gt;Fertig&lt;/h1&gt;
+[{"city":"Bern",...}]</div>
+          <p class="text-sm">Debug-Text und HTML zerstören die Antwort.</p>
+        </div>
+        <div class="split-half split-good">
+          <h2>Eine reine Antwort</h2>
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+header('Content-Type: application/json; charset=utf-8');
+
+echo json_encode($data, JSON_THROW_ON_ERROR);
+          </code></pre>
+          <div class="output">[{"city":"Bern",...}]</div>
+        </div>
+      </section>
+
+      <!-- ============ 17 Trenner ============ -->
+      <section id="divider-fehler" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip"><span>Extract</span><span class="sep">→</span><span>Transform</span><span class="sep">→</span><span>Load</span><span class="sep">→</span><span>Datenbank</span><span class="sep">→</span><span class="is-here">Unload</span><span class="sep">→</span><span>Chart.js</span></div>
+        <p class="chapter-step">Baustein 3 im Ausnahmefall</p>
+        <h1>Leere Resultate und Fehler</h1>
+        <p>Auch der Ausnahmefall antwortet als JSON</p>
+      </section>
+
+      <!-- ============ 18 ============ -->
+      <section id="leere-liste">
+        <span class="slide-tag">PHP</span>
+        <h2>Kein Treffer ist kein Fehler</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: stretch;">
+            <div class="response-card is-ok">
+              <span class="status-pill">200 OK</span>
+              <span class="code-label">keine passenden Zeilen</span>
+              <div class="response-code">[]</div>
+            </div>
+            <div>
+              <ul class="list-tight">
+                <li><code>fetchAll()</code> liefert bei null Treffern eine leere Liste</li>
+                <li><code>json_encode</code> macht daraus <code>[]</code></li>
+                <li>Der Code braucht dafür keine Sonderbehandlung</li>
+                <li>Das Frontend kann dieselbe Listenlogik weiterverwenden</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-green mt-1">
+            <p>Für eine Listenabfrage ist <code>[]</code> die stabilste Antwort.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 19 ============ -->
+      <section id="fehlerantwort">
+        <span class="slide-tag">PHP</span>
+        <h2>Auch ein Fehler antwortet als JSON</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+try {
+    // verbinden, lesen und antworten
+} catch (Throwable $error) {
+    http_response_code(500);
+    error_log($error-&gt;getMessage());
+
+    echo json_encode([
+        'error' =&gt; 'Daten konnten nicht geladen werden.',
+    ]);
+}
+          </code></pre>
+          <div class="callout callout-orange mt-1">
+            <p>Interne Datenbankmeldungen gehören ins Server-Log und nicht in die öffentliche Antwort.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 20 Trenner ============ -->
+      <section id="divider-filter" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip"><span>Extract</span><span class="sep">→</span><span>Transform</span><span class="sep">→</span><span>Load</span><span class="sep">→</span><span>Datenbank</span><span class="sep">→</span><span class="is-here">Unload</span><span class="sep">→</span><span>Chart.js</span></div>
+        <p class="chapter-step">Baustein 4</p>
+        <h1>Den Endpunkt filtern</h1>
+        <p>Die URL stellt eine kleine Frage an die Daten</p>
+      </section>
+
+      <!-- ============ 21 ============ -->
+      <section id="get-parameter">
+        <span class="slide-tag">URL + PHP</span>
+        <h2><code>$_GET</code> liest Werte aus der URL</h2>
+        <div class="content">
+          <div class="request-line"><span class="method">GET</span><span>/unload.php?<mark>city=Bern</mark></span></div>
+          <div class="flow mt-2">
+            <div class="flow-step"><span class="flow-title">Name</span><span class="flow-sub"><code>city</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Wert</span><span class="flow-sub"><code>Bern</code></span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">PHP</span><span class="flow-sub"><code>$_GET['city']</code></span></div>
+          </div>
+          <pre class="code-lg mt-2"><code data-trim data-noescape class="language-php">
+$city = trim($_GET['city'] ?? '');
+          </code></pre>
+          <p class="text-sm text-muted mt-1"><code>?? ''</code> setzt einen leeren String, wenn der Parameter fehlt.</p>
+        </div>
+      </section>
+
+      <!-- ============ 22 ============ -->
+      <section id="optionaler-filter">
+        <span class="slide-tag">PHP + SQL</span>
+        <h2>Der Filter ist optional</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$sql = 'SELECT c.name AS city, hs.year, hs.measurement_days,
+               hs.hot_days, hs.max_temperature_c
+        FROM heat_summers AS hs
+        JOIN cities AS c ON c.id = hs.city_id';
+
+$params = [];
+
+if ($city !== '') {
+    $sql .= ' WHERE c.name = :city';
+    $params['city'] = $city;
+}
+
+$sql .= ' ORDER BY hs.year, c.name';
+          </code></pre>
+          <div class="callout callout-blue mt-1">
+            <p>Ohne <code>city</code> kommen alle Städte und mit <code>city</code> nur passende Zeilen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 23 ============ -->
+      <section id="filter-ausfuehren">
+        <span class="slide-tag">PHP</span>
+        <h2>Der Wert bleibt vom SQL getrennt</h2>
+        <div class="content">
+          <pre class="code-lg"><code data-trim data-noescape class="language-php">
+$statement = $pdo-&gt;prepare($sql);
+$statement-&gt;execute($params);
+
+$rows = $statement-&gt;fetchAll();
+          </code></pre>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: stretch;" class="mt-2">
+            <div class="box">
+              <span class="code-label">SQL-Bauplan</span>
+              <p><code>WHERE c.name = :city</code></p>
+            </div>
+            <div class="box">
+              <span class="code-label">Werte</span>
+              <p><code>['city' =&gt; 'Bern']</code></p>
+            </div>
+          </div>
+          <p class="text-sm text-muted mt-1">Ohne Filter ist <code>$params</code> einfach eine leere Liste.</p>
+        </div>
+      </section>
+
+      <!-- ============ 24 ============ -->
+      <section id="endpunkt-testen">
+        <span class="slide-tag">Browser</span>
+        <h2>Vier Aufrufe zeigen, ob der Vertrag hält</h2>
+        <div class="content">
+          <table class="test-table">
+            <tr><th>Aufruf</th><th>Erwartung</th></tr>
+            <tr><td><code>/unload.php</code></td><td>258 sortierte Datensätze</td></tr>
+            <tr><td><code>/unload.php?city=Bern</code></td><td>86 Datensätze aus Bern</td></tr>
+            <tr><td><code>/unload.php?city=Zürich</code></td><td>86 Datensätze mit korrektem Umlaut</td></tr>
+            <tr><td><code>/unload.php?city=Atlantis</code></td><td>leere Liste <code>[]</code></td></tr>
+          </table>
+          <div class="callout callout-blue mt-2">
+            <p>Prüfe in der Entwicklerkonsole im Netzwerk-Tab zusätzlich den Statuscode und den <code>Content-Type</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 25 ============ -->
+      <section id="projekt-checkliste">
+        <h2>Übertragt das Muster auf euren Endpunkt</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <ul class="list-tight text-sm">
+              <li>Nur Felder aus dem Datenvertrag auswählen</li>
+              <li>Die JSON-Feldnamen im <code>SELECT</code> mit <code>AS</code> setzen</li>
+              <li>Eine feste und sinnvolle Sortierung setzen</li>
+              <li>Einen optionalen Filter als Prepared Statement bauen</li>
+            </ul>
+            <ul class="list-tight text-sm">
+              <li>Ohne Treffer eine leere Liste liefern</li>
+              <li>Fehler als JSON ohne interne Details beantworten</li>
+              <li>Keine HTML- oder Debug-Ausgabe mitsenden</li>
+              <li>Mock-JSON und echte Antwort im Team vergleichen</li>
+            </ul>
+          </div>
+          <div class="callout callout-blue mt-2">
+            <p>Fertig ist der Endpunkt, wenn das Frontend ohne Sonderlösung zwischen Mock und PHP wechseln kann.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 26 Schluss ============ -->
+      <section id="schluss">
+        <h2>Zum Mitnehmen</h2>
+        <div class="content" style="justify-content: center;">
+          <p class="big-statement"><code>SELECT</code> liest die Daten in der Datenbank.<br><code>json_encode</code> liefert sie ans Frontend.</p>
+          <p class="text-xl mt-2"><code>$_GET</code> macht den Endpunkt filterbar.</p>
+          <p class="mt-2"><span class="next-step">Nächster Schritt: Chart.js lädt den Endpunkt</span></p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: true,
+      progress: true,
+      slideNumber: 'c',
+      hash: true,
+      transition: 'slide',
+      center: false,
+      plugins: [ RevealHighlight ]
+    });
+  </script>
+</body>
+</html>

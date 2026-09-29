@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IM3 – Transform</title>
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- FHGR Foliendesign (gemeinsam fuer alle Foliensaetze) -->
+  <link rel="stylesheet" href="../_foliendesign/fhgr-slides.css">
+
+  <!-- Sonderregeln nur fuer diesen Foliensatz -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============ 1 Titel ============ -->
+      <section id="title" class="title-slide" data-state="is-title">
+        <h1>Transform</h1>
+        <div class="rule"></div>
+        <p>Interaktive Medien 3</p>
+        <p class="sub">nick.schneeberger@fhgr.ch</p>
+      </section>
+
+      <!-- ============ 2 Inhalt ============ -->
+      <section id="inhalt">
+        <h2>Inhalt</h2>
+        <div class="content">
+          <ul class="text-xl">
+            <li>Die Frage bestimmt die Form</li>
+            <li>Datenvertrag und Audit</li>
+            <li>Sieben Arten zu transformieren</li>
+            <li>Wie die Dateien zusammenhängen</li>
+            <li>Neue Schreibweisen im Code</li>
+            <li>Die KI schreibt den Code, nicht die Regeln</li>
+          </ul>
+          <p class="text-sm text-muted mt-2">Danach: eine Übung auf Papier und zwei Code-Alongs.</p>
+        </div>
+      </section>
+
+      <!-- ============ 3 ============ -->
+      <section id="wo-wir-stehen">
+        <h2>Wo wir stehen</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step"><span class="flow-title">Extract</span><span class="flow-sub">Daten hereinholen</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">Transform</span><span class="flow-sub">Regeln anwenden</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Load</span><span class="flow-sub">in die Datenbank</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Unload</span><span class="flow-sub">JSON-Endpunkt</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Chart.js</span><span class="flow-sub">Story</span></div>
+          </div>
+          <ul class="list-tight mt-1">
+            <li><strong>Extract</strong> hat beantwortet: Woher kommen die Daten, und wie lesen wir sie?</li>
+            <li><strong>Transform</strong> beantwortet: Welche Daten brauchen wir für unsere Frage, was bedeuten sie, und in welche Form bringen wir sie?</li>
+            <li><strong>Load</strong> kommt danach: Wie kommen sie in die Datenbank?</li>
+          </ul>
+          <p class="mt-1">Säubern gehört also dazu – nur folgt auch das aus der Frage.</p>
+        </div>
+      </section>
+
+      <!-- ============ 4 Trenner ============ -->
+      <section id="divider-frage" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Die Frage<br>bestimmt die Form</h1>
+        <p>Warum es keine allgemeine Aufräumfunktion gibt</p>
+      </section>
+
+      <!-- ============ 5 ============ -->
+      <section id="keine-neutrale-reinigung">
+        <h2>Es gibt keine neutrale Aufräumfunktion</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">«Aufräumen» klingt nach einer Funktion, die man einmal drüberlaufen lässt.</p>
+              <ul class="list-tight">
+                <li>Die gibt es nicht</li>
+                <li>Dieselbe Spalte ist für eine Frage wichtig und für die nächste überflüssig</li>
+                <li>Jede Regel ist eine Entscheidung</li>
+                <li>Jede Entscheidung muss jemand verantworten können</li>
+              </ul>
+            </div>
+            <div>
+              <div class="box">
+                <h3>Frage A</h3>
+                <p class="text-sm mb-0">Wie viele Hitzetage hat ein Sommer?</p>
+                <p class="text-sm text-muted mb-0">→ alles ausser Juni bis August fliegt raus</p>
+              </div>
+              <div class="box">
+                <h3>Frage B</h3>
+                <p class="text-sm mb-0">Wann war der heisseste Tag überhaupt?</p>
+                <p class="text-sm text-muted mb-0">→ genau diese Zeilen dürfen nicht wegfallen</p>
+              </div>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Dieselben Rohdaten, zwei Fragen, gegensätzliche Regeln.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 6 ============ -->
+      <section id="hitzesommer-frage">
+        <h2>Von der Frage zu den Regeln</h2>
+        <div class="content">
+          <div class="callout callout-blue">
+            <p>Wie hat sich die Anzahl Hitzetage pro meteorologischem Sommer in Bern, Chur und Zürich seit
+              1940 verändert?</p>
+          </div>
+          <p class="list-intro">Aus dieser einen Frage folgen vier Regeln:</p>
+          <ul class="list-tight">
+            <li>Wir behalten nur Juni, Juli und August</li>
+            <li>Ein Hitzetag ist ein Tag mit mindestens 30 °C Tagesmaximum</li>
+            <li>Wir zählen pro Stadt und Jahr</li>
+            <li>Einen unvollständigen Sommer vergleichen wir nicht mit</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p>Keine dieser vier Regeln steht in den Daten – sie stehen alle in der Frage.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 7 Split ============ -->
+      <section id="andere-frage" class="split-slide">
+        <div class="split-half split-good">
+          <h2>Hitzetage pro Sommer</h2>
+          <p class="text-sm list-intro">Eine Zeile ist eine Stadt in einem Sommer.</p>
+          <ul class="list-tight text-sm">
+            <li>Juni bis August behalten</li>
+            <li>Ab 30 °C zählt der Tag</li>
+            <li>Pro Stadt und Jahr zusammenzählen</li>
+            <li>Unvollständige Sommer entfernen</li>
+          </ul>
+        </div>
+        <div class="split-half split-bad">
+          <h2>Der heisseste Tag</h2>
+          <p class="text-sm list-intro">Eine Zeile ist ein einzelner Tag.</p>
+          <ul class="list-tight text-sm">
+            <li>Alle Monate behalten</li>
+            <li>Keine Schwelle nötig</li>
+            <li>Nichts zusammenzählen</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 8 ============ -->
+      <section id="zweiter-datensatz">
+        <h2>Nicht jeder Datensatz ist so clean</h2>
+        <div class="content">
+          <p class="list-intro">Beim Hitzesommer hat eine Maschine gemessen.</p>
+          <ul>
+            <li>Jeder Wert ist eine Zahl</li>
+            <li>Jede Zeile ist gleich aufgebaut</li>
+            <li>Die vier Regeln kamen direkt aus der Frage</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 9 ============ -->
+      <section id="shark-dataset">
+        <h2>Shark Attack Dataset</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: start;">
+            <div class="fragment" data-fragment-index="0">
+              <p class="list-intro">Diese Vorfälle haben Menschen über Jahrzehnte von Hand erfasst.</p>
+              <ul class="list-tight text-sm">
+                <li>Freitext statt Auswahlfeld</li>
+                <li>Art, Grösse und Zweifel im selben Feld</li>
+                <li>Rund 8700 Zeilen aus mehr als hundert Jahren</li>
+              </ul>
+            </div>
+            <div class="fragment" data-fragment-index="1">
+              <span class="code-label">Spalte «Species» – echte Werte</span>
+              <div class="output">White shark
+6' shark
+1.8 m [6'] shark
+Shark involvement not confirmed
+Questionable incident
+Possibly a juvenile blacktip or
+spinner shark</div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">Global Shark Attack File (GSAF), via Kaggle.</div>
+      </section>
+
+      <!-- ============ 10 ============ -->
+      <section id="erst-schauen">
+        <h2>Darum: Zuerst erkunden</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">Vor der ersten Regel steht der Blick in die Rohwerte.</p>
+              <ul class="list-tight text-sm">
+                <li>Welche Werte kommen überhaupt vor?</li>
+                <li>Wie oft kommt jeder von ihnen vor?</li>
+                <li>Welche sagen in Wahrheit «wir wissen es nicht»?</li>
+              </ul>
+              <div class="callout callout-blue mt-1">
+                <p class="text-sm">Dafür lohnt sich ein kleines Skript, das nur erkundet.</p>
+                <p class="text-sm">Dieses nennen wir <code>explore.php</code>.</p>
+                <p class="text-sm">Dafür lässt sich KI sehr gut einsetzen.</p>
+              </div>
+            </div>
+            <div>
+              <span class="code-label">explore.php – Hai-Vorfälle</span>
+              <table class="mini-table">
+                <tr><th>Beobachtung</th><th style="text-align: right;">Anzahl</th></tr>
+                <tr><td>Zeilen gesamt</td><td style="text-align: right;">8702</td></tr>
+                <tr><td>verschiedene Werte in Species</td><td style="text-align: right;">1468</td></tr>
+                <tr><td>davon leer</td><td style="text-align: right;">5244</td></tr>
+                <tr><td>verschiedene Werte in Activity</td><td style="text-align: right;">1504</td></tr>
+                <tr><td>verschiedene Werte in Type</td><td style="text-align: right;">9</td></tr>
+              </table>
+              <p class="text-sm mt-1">Demo:
+                <a href="http://localhost:8000/code-alongs/C_transform/10_sharkdaten_transformieren/explore.php"
+                   target="_blank" rel="noopener">explore.php im Browser öffnen</a></p>
+            </div>
+          </div>
+          <p class="text-sm mb-0" style="margin-top: auto;">Ohne diesen Blick schreibt ihr Regeln für
+            Daten, die es so gar nicht gibt.</p>
+        </div>
+      </section>
+
+      <!-- ============ 11 Split ============ -->
+      <section id="shark-frage" class="split-slide">
+        <div class="split-half split-bad">
+          <h2>Schlechte Frage</h2>
+          <p class="text-sm list-intro">Wo ist es am gefährlichsten?</p>
+          <ul class="list-tight text-sm fragment" data-fragment-index="0">
+            <li>Kein Zeitraum genannt</li>
+            <li>Unklar, welche Vorfälle zählen</li>
+            <li>Klingt nach Gefahr, ist aber eine Zählung</li>
+            <li>Wo niemand zählt, sieht es sicher aus</li>
+          </ul>
+        </div>
+        <div class="split-half split-good">
+          <div class="fragment" data-fragment-index="1">
+            <h2>Gute Frage</h2>
+            <p class="text-sm list-intro">In welchen Ländern wurden in unprovozierten Vorfällen von
+              1950 bis 2018 die meisten Vorfälle erfasst?</p>
+          </div>
+          <ul class="list-tight text-sm fragment" data-fragment-index="2">
+            <li>Zeitraum steht drin</li>
+            <li>Auswahl der Fälle steht drin</li>
+            <li>Das Wort «erfasst» gibt die Lücke zu</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 12 ============ -->
+      <section id="haeufigkeit-risiko">
+        <h2>Häufigkeit ist kein Risiko</h2>
+        <div class="content">
+          <!-- Ein Grid statt zweier Spalten-Container: So liegen die beiden Ausgabe-Kaesten in
+               derselben Zeile und sind dadurch automatisch gleich hoch. -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; column-gap: 40px; align-items: stretch;">
+            <span class="code-label">was wir haben</span>
+            <span class="code-label">was ein Risiko bräuchte</span>
+            <div class="output" style="margin: 0;">426 Vorfälle
+mit White shark</div>
+            <div class="output" style="margin: 0;">      Vorfälle
+──────────────────
+   Gelegenheiten</div>
+            <p class="text-sm text-muted mt-1">Das ist eine Zählung in diesem Datensatz.</p>
+            <p class="text-sm text-muted mt-1">Diesen Nenner enthält der Datensatz nicht.</p>
+            <p class="text-sm mt-1" style="grid-column: 2;">Zur Gelegenheit gehören beide Seiten: wie viele
+              Menschen wie lange im Wasser waren – und wie viele Haie dieser Art dort überhaupt leben.</p>
+          </div>
+          <div class="callout callout-orange">
+            <p>Eine häufige Art steht auch dann zuoberst, wenn von ihr wenig Gefahr ausgeht.</p>
+            <p>Ohne Nenner keine Aussage über Gefahr, Wahrscheinlichkeit oder Ursache.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 13 Trenner ============ -->
+      <section id="divider-vertrag" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Datenvertrag<br>und Audit</h1>
+      </section>
+
+      <!-- ============ 14 ============ -->
+      <section id="datenvertrag">
+        <h2>Der Datenvertrag</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1.05fr; gap: 40px; align-items: start;">
+            <div>
+              <span class="code-label">eine Zeile aus unserem Resultat</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-json">
+{
+  "city": "Bern",
+  "year": 2023,
+  "measurement_days": 92,
+  "hot_days": 12,
+  "max_temperature_c": 36.3
+}
+              </code></pre>
+            </div>
+            <div>
+              <ul class="list-tight text-sm">
+                <li><code>city</code> ist ein String</li>
+                <li><code>year</code> und die Zählungen sind Ganzzahlen</li>
+                <li><code>max_temperature_c</code> ist eine Kommazahl</li>
+                <li>Alle Zeilen haben dieselben Felder</li>
+              </ul>
+              <p class="text-sm mt-1">Vertrag heisst: Beide Seiten dürfen sich darauf verlassen, und
+                geändert wird er nur gemeinsam.</p>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Backend und Frontend vereinbaren das <strong>vor</strong> der Implementation.</p>
+            <p>Danach kann das Frontend mit erfundenen Daten anfangen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 15 ============ -->
+      <section id="audit">
+        <h2>Das Audit</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <span class="code-label">audit aus dem Hitzesommer-Transform</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-json">
+"audit": {
+  "input_days": 94875,
+  "outside_summer": 70953,
+  "invalid_measurements": 0,
+  "incomplete_summers": 3,
+  "output_rows": 258
+}
+              </code></pre>
+            </div>
+            <div>
+              <ul class="list-tight text-sm">
+                <li>Was kam rein?</li>
+                <li>Was fiel weg, und aus welchem Grund?</li>
+                <li>Was blieb übrig?</li>
+              </ul>
+              <div class="callout callout-blue">
+                <p>Die drei entfernten Sommer sind der laufende Sommer 2026 in drei Städten.</p>
+              </div>
+            </div>
+          </div>
+          <div class="callout callout-orange mt-1">
+            <p>Das ist kein Debug-Output, sondern Teil des Resultats.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 16 Trenner ============ -->
+      <section id="divider-werkzeugkasten" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Sieben Arten<br>zu transformieren</h1>
+        <p>Der Werkzeugkasten für jeden Datensatz</p>
+      </section>
+
+      <!-- ============ 17 ============ -->
+      <section id="werkzeugkasten">
+        <h2>Der Werkzeugkasten</h2>
+        <div class="content">
+          <table>
+            <tr>
+              <th style="width: 22%;">Form</th>
+              <th style="width: 40%;">Was passiert</th>
+              <th>Beispiel aus unseren Daten</th>
+            </tr>
+            <tr><td><strong>filtern</strong></td><td>Zeilen weglassen, die nicht zur Frage gehören</td><td>nur Juni bis August</td></tr>
+            <tr><td><strong>deduplizieren</strong></td><td>dieselbe Beobachtung nur einmal behalten</td><td>ein Datum steht zweimal da</td></tr>
+            <tr><td><strong>bereinigen</strong></td><td>falsche, unmögliche oder fehlende Werte behandeln</td><td><code>18C</code>, <code>-50</code>, <code>N/A</code></td></tr>
+            <tr><td><strong>normalisieren</strong></td><td>gleiche Bedeutung, gleiche Schreibweise</td><td><code>Boogie boarding</code> → Surfing</td></tr>
+            <tr><td><strong>umbenennen</strong></td><td>Feldnamen auf den Datenvertrag bringen</td><td><code>Rain (mm)</code> → <code>precipitation_mm</code></td></tr>
+            <tr><td><strong>ableiten</strong></td><td>aus vorhandenen Werten einen neuen berechnen</td><td>31.1 °C → Hitzetag</td></tr>
+            <tr><td><strong>aggregieren</strong></td><td>mehrere Zeilen zu einer zusammenfassen</td><td>92 Tage → ein Sommer</td></tr>
+          </table>
+          <p class="text-sm text-muted mt-1">Felder, die niemand braucht, lassen wir beim Bauen der
+            Zielstruktur einfach weg.</p>
+        </div>
+      </section>
+
+      <!-- ============ 18 Split ============ -->
+      <section id="filtern">
+        <h2>filtern</h2>
+        <div class="content">
+          <p class="list-intro">Zeilen, die nicht zur Frage gehören, fallen weg.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: alle Tage</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th></tr>
+                <tr><td>2023-01-12</td><td>6.1</td></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+                <tr><td>2023-11-03</td><td>9.8</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: nur Sommertage</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Die Bedingung steht in der Frage: nur Juni, Juli und August.</p>
+        </div>
+      </section>
+
+      <!-- ============ 19 ============ -->
+      <section id="deduplizieren">
+        <h2>deduplizieren</h2>
+        <div class="content">
+          <p class="list-intro">Dieselbe Beobachtung bleibt nur einmal stehen.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+                <tr><td>2023-07-16</td><td>24.0</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+                <tr><td>2023-07-16</td><td>24.0</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Dafür braucht es eine Regel, woran ihr dieselbe Beobachtung erkennt.</p>
+        </div>
+      </section>
+
+      <!-- ============ 20 ============ -->
+      <section id="bereinigen">
+        <h2>bereinigen</h2>
+        <div class="content">
+          <p class="list-intro">Falsche, unmögliche und fehlende Werte werden behandelt.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: Rohwert</span>
+              <table class="mini-table">
+                <tr><th>Spalte</th><th>Wert</th></tr>
+                <tr><td>Temperatur</td><td>999</td></tr>
+                <tr><td>Luftfeuchtigkeit</td><td>150</td></tr>
+                <tr><td>Wind</td><td>12 km/h</td></tr>
+                <tr><td>Sonnenstunden</td><td>(leer)</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: bereinigt</span>
+              <table class="mini-table">
+                <tr><th>Spalte</th><th>Wert</th></tr>
+                <tr><td>Temperatur</td><td>null</td></tr>
+                <tr><td>Luftfeuchtigkeit</td><td>null</td></tr>
+                <tr><td>Wind</td><td>12</td></tr>
+                <tr><td>Sonnenstunden</td><td>null</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">999 ist keine Temperatur, sondern ein Platzhalter für «nicht
+            gemessen».</p>
+          <div class="callout callout-orange">
+            <p>Falsch und fehlend sind zwei verschiedene Fälle.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 21 ============ -->
+      <section id="normalisieren">
+        <h2>normalisieren</h2>
+        <div class="content">
+          <p class="list-intro">Werte mit gleicher Bedeutung bekommen dieselbe Schreibweise.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1.1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: Rohwerte</span>
+              <table class="mini-table">
+                <tr><th>Activity</th></tr>
+                <tr><td>Surfing</td></tr>
+                <tr><td>Boogie boarding</td></tr>
+                <tr><td>Kite boarding</td></tr>
+                <tr><td>Surf fishing</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: Gruppen</span>
+              <table class="mini-table">
+                <tr><th>Aktivität</th></tr>
+                <tr><td>Surfing &amp; board sports</td></tr>
+                <tr><td>Surfing &amp; board sports</td></tr>
+                <tr><td>Surfing &amp; board sports</td></tr>
+                <tr><td>Fishing</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Die vierte Zeile enthält das Wort «surf» und gehört trotzdem woandershin.</p>
+          <div class="callout callout-blue">
+            <p>Welche Werte dasselbe meinen, entscheidet ihr und nicht die Daten.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 22 ============ -->
+      <section id="umbenennen">
+        <h2>umbenennen</h2>
+        <div class="content">
+          <p class="list-intro">Die Felder bekommen die Namen aus dem Datenvertrag.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: Name in der Quelle</span>
+              <table class="mini-table">
+                <tr><th>Feldname</th></tr>
+                <tr><td>time</td></tr>
+                <tr><td>temperature_2m_max</td></tr>
+                <tr><td>"Species "</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: unser Name</span>
+              <table class="mini-table">
+                <tr><th>Feldname</th></tr>
+                <tr><td>date</td></tr>
+                <tr><td>max_temperature_c</td></tr>
+                <tr><td>shark_category</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Die Einheit gehört in den Namen, nicht an den Wert.</p>
+          <div class="callout callout-blue">
+            <p>Das Frontend kennt nur diese Namen – deshalb werden sie vorher vereinbart.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 23 ============ -->
+      <section id="ableiten">
+        <h2>ableiten</h2>
+        <div class="content">
+          <p class="list-intro">Aus Werten derselben Zeile entsteht ein neuer Wert.</p>
+          <div style="display: grid; grid-template-columns: 1fr auto 1.25fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: drei Tage aus Bern</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th></tr>
+                <tr><td>2023-07-14</td><td>26.5</td></tr>
+                <tr><td>2023-07-15</td><td>31.1</td></tr>
+                <tr><td>2023-07-16</td><td>24.0</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: eine Spalte mehr</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th><th>Hitzetag</th></tr>
+                <tr><td>2023-07-14</td><td>26.5</td><td>nein</td></tr>
+                <tr><td>2023-07-15</td><td>31.1</td><td>ja</td></tr>
+                <tr><td>2023-07-16</td><td>24.0</td><td>nein</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Die Regel dahinter ist unsere Definition:
+            <code>$temperatureC &gt;= 30.0</code></p>
+          <div class="callout callout-blue">
+            <p>Drei Zeilen bleiben drei Zeilen – es kommt nur ein Wert dazu.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 24 ============ -->
+      <section id="aggregieren">
+        <h2>aggregieren</h2>
+        <div class="content">
+          <p class="list-intro">Aus vielen Zeilen wird eine einzige.</p>
+          <div style="display: grid; grid-template-columns: 1.25fr auto 1fr; column-gap: 32px; align-items: start;">
+            <div>
+              <span class="code-label">vorher: 92 Sommertage in Bern</span>
+              <table class="mini-table">
+                <tr><th>Datum</th><th>°C</th><th>Hitzetag</th></tr>
+                <tr><td>2023-07-14</td><td>26.5</td><td>nein</td></tr>
+                <tr><td>2023-07-15</td><td>31.1</td><td>ja</td></tr>
+                <tr><td>…</td><td>…</td><td>…</td></tr>
+              </table>
+            </div>
+            <div class="text-2xl text-muted" style="align-self: center;">→</div>
+            <div>
+              <span class="code-label">nachher: eine Zeile</span>
+              <table class="mini-table">
+                <tr><th>Stadt</th><th>Jahr</th><th>Hitzetage</th></tr>
+                <tr><td>Bern</td><td>2023</td><td>12</td></tr>
+              </table>
+            </div>
+          </div>
+          <p class="text-sm mt-1">Aus 92 Tageszeilen wird eine Zeile pro Stadt und Sommer.</p>
+          <div class="callout callout-orange">
+            <p>Die einzelnen Tage sind danach weg.</p>
+            <p>Welcher Tag der heisseste war, lässt sich hier nicht mehr fragen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 25 ============ -->
+      <section id="null-nicht-null">
+        <h2><code>null</code> ist nicht <code>0</code></h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <span class="code-label">im Rohdatensatz steht</span>
+              <div class="output">Rain (mm): N/A</div>
+              <p class="text-sm">Das heisst: Wir wissen es nicht.</p>
+              <p class="text-sm">Das heisst nicht: Es hat nicht geregnet.</p>
+            </div>
+            <div>
+              <span class="code-label">was passiert, wenn man 0 einsetzt</span>
+              <ul class="list-tight text-sm">
+                <li>Jeder Durchschnitt wird zu tief</li>
+                <li>Das Diagramm sieht trotzdem plausibel aus</li>
+                <li>Niemand bemerkt den Fehler</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-orange">
+            <p>Unbekannte Werte werden <code>null</code> oder fallen bewusst weg.</p>
+            <p>Wie viele es waren, gehört ins Audit.</p>
+          </div>
+          <p class="text-sm mt-1"><code>false</code>, <code>0</code>, <code>''</code> und <code>null</code>
+            bedeuten vier verschiedene Dinge.</p>
+        </div>
+      </section>
+
+      <!-- ============ 26 ============ -->
+      <section id="reihenfolge">
+        <h2>Erst filtern, dann rechnen</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Falsche Reihenfolge</h3>
+              <ul class="list-tight text-sm">
+                <li>Durchschnitt über alle Tage rechnen</li>
+                <li>Danach die Wintertage entfernen</li>
+                <li>Der Durchschnitt enthält sie trotzdem</li>
+              </ul>
+            </div>
+            <div class="fragment" data-fragment-index="0">
+              <h3>Richtige Reihenfolge</h3>
+              <ul class="list-tight text-sm">
+                <li>Wintertage entfernen</li>
+                <li>Fehlende Werte behandeln</li>
+                <li>Danach rechnen und zusammenfassen</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-blue mt-1">
+            <p>Der Fehler wirft keine Fehlermeldung, sondern liefert eine plausible falsche Zahl.</p>
+          </div>
+          <p class="text-sm mt-1">Als Faustregel: erst auswählen, dann bereinigen, dann rechnen, zuletzt
+            zusammenfassen.</p>
+        </div>
+      </section>
+
+      <!-- ============ 27 Trenner ============ -->
+      <section id="divider-dateien" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Wie die Dateien<br>zusammenhängen</h1>
+        <p>Drei Skripte, ein Array</p>
+      </section>
+
+      <!-- ============ 28 ============ -->
+      <section id="drei-dateien">
+        <h2>Drei Skripte, ein Array</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div class="flow flow-vertical">
+              <div class="flow-step"><span class="flow-title">extract.php</span><span class="flow-sub">liest die Rohdaten</span></div>
+              <div class="flow-arrow">↓ <span class="chain-return">PHP-Array</span></div>
+              <div class="flow-step is-active"><span class="flow-title">transform.php</span><span class="flow-sub">wendet die Regeln an</span></div>
+              <div class="flow-arrow">↓ <span class="chain-return">PHP-Array</span></div>
+              <div class="flow-step"><span class="flow-title">index.php</span><span class="flow-sub">macht das Array sichtbar</span></div>
+              <div class="flow-arrow">↓ <span class="chain-return">Kontrollansicht</span></div>
+            </div>
+            <div>
+              <ul class="list-tight text-sm">
+                <li>Jede Datei hat genau eine Aufgabe</li>
+                <li>Zwischen den Dateien fliesst ein <strong>PHP-Array</strong></li>
+                <li><code>index.php</code> zeigt uns dieses Array nur an</li>
+                <li>Die Rohdaten liegen daneben im Ordner <code>data/</code></li>
+              </ul>
+              <div class="callout callout-orange">
+                <p>Wer Array und JSON verwechselt, sucht den Fehler später an der falschen Stelle.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 29 ============ -->
+      <section id="ganze-kette">
+        <h2>So hängt am Ende alles zusammen</h2>
+        <div class="content">
+          <div class="flow">
+            <div class="flow-step is-active"><span class="flow-title">extract.php</span><span class="flow-sub">liest</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-active"><span class="flow-title">transform.php</span><span class="flow-sub">wendet Regeln an</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">load.php</span><span class="flow-sub">schreibt hinein</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Datenbank</span><span class="flow-sub">speichert</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">unload.php</span><span class="flow-sub">liest heraus</span></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><span class="flow-title">Chart.js</span><span class="flow-sub">zeichnet</span></div>
+          </div>
+          <ul class="list-tight">
+            <li>Die ersten beiden Dateien bauen wir heute</li>
+            <li>Zwischen allen PHP-Dateien fliesst ein <strong>PHP-Array</strong></li>
+            <li>Erst <code>unload.php</code> macht daraus <strong>JSON</strong> für das Frontend</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p><code>index.php</code> steht daneben und nicht in dieser Kette.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 29 ============ -->
+      <section id="datei-gibt-wert-zurueck">
+        <h2>Eine Datei kann einen Wert zurückgeben</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: start;">
+            <div>
+              <span class="code-label">extract.php – letzte Zeile</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$rawLocations[] = [
+    'city' => $city,
+    'source' => json_decode($json, true),
+];
+
+return $rawLocations;
+              </code></pre>
+            </div>
+            <div>
+              <span class="code-label">transform.php – erste Zeile</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$rawLocations = include __DIR__ . '/extract.php';
+              </code></pre>
+            </div>
+          </div>
+          <ul class="list-tight text-sm">
+            <li><code>return</code> steht hier <strong>ausserhalb</strong> einer Funktion und beendet die Datei</li>
+            <li><code>include</code> führt die andere Datei aus und liefert deren <code>return</code> als Wert</li>
+            <li>Die Datei verhält sich damit wie ein Funktionsaufruf</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Genauso bekommt <code>index.php</code> das Resultat von <code>transform.php</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 30 ============ -->
+      <section id="dir-und-punkt">
+        <h2><code>__DIR__</code> und der Punkt</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+__DIR__                        // der Ordner DIESER Datei
+__DIR__ . '/extract.php'       // ...der Ordner plus Dateiname
+'data/' . $city . '.json'      // "data/bern.json"
+          </code></pre>
+          <ul class="list-tight">
+            <li>Der Punkt verkettet Text zu einem längeren Text</li>
+            <li><code>__DIR__</code> ist der Ordner der laufenden Datei, nicht das Arbeitsverzeichnis</li>
+            <li>Ohne <code>__DIR__</code> hängt der Pfad davon ab, wo der Server gestartet wurde</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p>Die Fehlermeldung zeigt dann auf die eingebundene Datei statt auf den falschen Pfad.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 31 ============ -->
+      <section id="index-kontrollansicht">
+        <h2>Warum wir <code>index.php</code> überhaupt öffnen</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 36px; align-items: start;">
+            <div>
+              <span class="code-label">index.php</span>
+              <pre class="code-sm"><code data-trim data-noescape class="language-php">
+&lt;?php
+header('Content-Type: application/json; charset=utf-8');
+
+$result = include __DIR__ . '/transform.php';
+
+echo json_encode(
+    $result,
+    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+);
+              </code></pre>
+            </div>
+            <div>
+              <ul class="list-tight text-sm">
+                <li><code>transform.php</code> gibt nur zurück und gibt nichts aus</li>
+                <li>Im Browser geöffnet wäre die Seite leer</li>
+                <li><code>json_encode</code> macht aus dem Array einen JSON-Text</li>
+                <li>Die drei Flags: eingerückt, Umlaute lesbar, Fehler laut</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Das ist ein Prüfwerkzeug für uns und kein Produkt für die Website.</p>
+            <p>Der spätere Endpunkt für Chart.js macht genau dasselbe mit Daten aus der Datenbank.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 32 Trenner ============ -->
+      <section id="divider-syntax" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Neue Schreibweisen<br>im Code</h1>
+        <p>Damit im Code-Along nichts unerklärt vorbeikommt</p>
+      </section>
+
+      <!-- ============ 33 ============ -->
+      <section id="null-koaleszenz">
+        <h2><code>??</code> – nimm das hier, sonst das da</h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$dates = $location['source']['daily']['time'] ?? [];
+
+$yearRaw = trim((string) ($attack['Year'] ?? ''));
+
+$counts[$category] = ($counts[$category] ?? 0) + 1;
+          </code></pre>
+          <ul class="list-tight">
+            <li>Links steht der Wunschwert, rechts der Ersatz</li>
+            <li>Der Ersatz greift, wenn der Schlüssel fehlt oder <code>null</code> ist</li>
+            <li>Das erspart eine Prüfung mit <code>isset</code> vor jedem Zugriff</li>
+          </ul>
+          <div class="callout callout-blue">
+            <p>Die dritte Zeile ist das Standardmuster zum Zählen: beim ersten Mal 0, danach eins mehr.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 34 ============ -->
+      <section id="casts">
+        <h2>Datentypen erzwingen mit <code>(int)</code> und <code>(float)</code></h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+$month = (int) substr($date, 5, 2);      // "07"    wird zu  7
+$temperatureC = (float) $temperature;    // "31.2"  wird zu  31.2
+$yearRaw = (string) $attack['Year'];     // 1985    wird zu  "1985"
+          </code></pre>
+          <ul class="list-tight text-sm">
+            <li>Aus einer CSV kommt <strong>alles</strong> als Text</li>
+            <li>Der Datenvertrag verlangt aber echte Zahlen</li>
+            <li>Die Klammer davor schreibt den Wert in den gewünschten Typ um</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p><code>(int) 'keine Angabe'</code> ergibt <code>0</code> und meldet keinen Fehler.</p>
+            <p>Deshalb steht vorher immer eine Prüfung mit <code>is_numeric</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 35 ============ -->
+      <section id="continue-muster">
+        <h2>Zählen, dann <code>continue</code></h2>
+        <div class="content">
+          <pre class="code-sm"><code data-trim data-noescape class="language-php">
+if (!in_array($month, $summerMonths, true)) {
+    $audit['outside_summer']++;   // erst zählen
+    continue;                     // dann diese Zeile überspringen
+}
+          </code></pre>
+          <ul class="list-tight">
+            <li><code>continue</code> springt zum nächsten Durchgang der Schleife</li>
+            <li>Der Rest des Schleifenkörpers wird für diese Zeile nicht ausgeführt</li>
+            <li>Dieses Paar wiederholt sich bei jedem Filter im Code-Along</li>
+          </ul>
+          <div class="callout callout-orange">
+            <p>Wer nur <code>continue</code> schreibt, verliert Zeilen unbemerkt.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 36 ============ -->
+      <section id="lesen-koennen">
+        <h2>Diese Befehle müsst ihr lesen, nicht auswendig können</h2>
+        <div class="content">
+          <table>
+            <tr>
+              <th style="width: 36%;">Im Code-Along</th>
+              <th>Was es tut</th>
+            </tr>
+            <tr><td><code>substr($date, 5, 2)</code></td><td>schneidet zwei Zeichen heraus, hier den Monat</td></tr>
+            <tr><td><code>is_numeric</code>, <code>isset</code></td><td>prüfen, ob ein Wert eine Zahl ist beziehungsweise existiert</td></tr>
+            <tr><td><code>in_array($m, $arr, true)</code></td><td>sucht in einer Liste, <code>true</code> vergleicht auch den Datentyp</td></tr>
+            <tr><td><code>usort</code> mit <code>&lt;=&gt;</code></td><td>sortiert eine Liste nach einer selbst geschriebenen Regel</td></tr>
+            <tr><td><code>trim</code>, <code>strtolower</code>, <code>str_contains</code></td><td>Text säubern, kleinschreiben und durchsuchen</td></tr>
+            <tr><td><code>arsort</code>, <code>array_slice</code></td><td>nach Anzahl sortieren und die ersten N behalten</td></tr>
+            <tr><td><code>throw new RuntimeException</code></td><td>bricht ab, statt still falsch weiterzurechnen</td></tr>
+          </table>
+          <p class="text-sm text-muted mt-1">Erklärungen und Beispiele dazu stehen im Cheatsheet zum
+            Transform.</p>
+        </div>
+      </section>
+
+      <!-- ============ 37 Trenner ============ -->
+      <section id="divider-ki" class="section-divider" data-state="is-section-divider">
+        <div class="etl-strip">Extract<span class="sep">→</span><span class="is-here">Transform</span><span class="sep">→</span>Load<span class="sep">→</span>Datenbank<span class="sep">→</span>Unload<span class="sep">→</span>Chart.js</div>
+        <h1>Die KI schreibt den Code,<br>nicht die Regeln</h1>
+        <p>Spezifikation statt Zuruf</p>
+      </section>
+
+      <!-- ============ 38 Split ============ -->
+      <section id="ki-kann" class="split-slide">
+        <div class="split-half split-good">
+          <h2>Das kann die KI gut</h2>
+          <ul class="list-tight text-sm">
+            <li>Schleifen und Hilfsfunktionen schreiben</li>
+            <li>Ein langes Mapping ausformulieren</li>
+            <li>Unbekannte Rohwerte gruppieren</li>
+            <li>Audit-Zähler ergänzen</li>
+            <li>Code kommentieren</li>
+          </ul>
+        </div>
+        <div class="split-half split-bad">
+          <h2>Das darf sie nicht entscheiden</h2>
+          <ul class="list-tight text-sm">
+            <li>Welche Datenfrage ihr stellt</li>
+            <li>Welche Fälle dazugehören</li>
+            <li>Welche Kategorien es gibt</li>
+            <li>Was mit unsicheren Werten passiert</li>
+            <li>Welche Aussage die Story machen darf</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ 39 ============ -->
+      <section id="ki-auftrag">
+        <h2>Ein brauchbarer Auftrag ist eine Spezifikation</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <p class="list-intro">Was in den Auftrag gehört:</p>
+              <ul class="list-tight text-sm">
+                <li>die Datenfrage</li>
+                <li>die Untersuchungseinheit</li>
+                <li>Eingabefelder mit echten Beispielwerten</li>
+                <li>alle Filter- und Mapping-Regeln</li>
+                <li>der Datenvertrag mit Datentypen</li>
+                <li>die gewünschten Audit-Zahlen</li>
+                <li>Fälle, die nicht geraten werden dürfen</li>
+              </ul>
+            </div>
+            <div>
+              <span class="code-label">die drei Schlusssätze</span>
+              <div class="output">Liste vor dem Code alle Annahmen auf.
+Erfinde keine zusätzlichen Kategorien.
+Schreibe kleine, einzeln prüfbare
+Funktionen.</div>
+              <div class="callout callout-orange">
+                <p>Keine Zugangsdaten und keine Personendaten in ein KI-Tool geben.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 40 ============ -->
+      <section id="ki-pruefen">
+        <h2>Was ihr an der Antwort prüft</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <ul class="list-tight text-sm">
+              <li>Stichprobe: zehn Rohwerte pro Kategorie durchsehen</li>
+              <li>Falsche Treffer durch kurze Suchwörter finden</li>
+              <li>Die häufigsten nicht zugeordneten Werte anschauen</li>
+              <li>Prüfen, ob die Zahlen im Audit zusammenpassen</li>
+            </ul>
+            <ul class="list-tight text-sm">
+              <li>Sind Zahlen wirklich Zahlen?</li>
+              <li>Lässt sich jede Regel aus der Datenfrage begründen?</li>
+              <li>Welche Annahmen hat die KI selbst getroffen?</li>
+            </ul>
+          </div>
+          <div class="callout callout-orange">
+            <p>Jede Annahme, die nicht in eurer Spezifikation stand, ist eine Entscheidung, die ihr hättet
+              treffen müssen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 41 ============ -->
+      <section id="was-kommt">
+        <h2>Was jetzt kommt</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;">
+            <div>
+              <h3>Heute im Unterricht</h3>
+              <ul class="list-tight text-sm">
+                <li>Wetterdaten auf Papier transformieren</li>
+                <li>Hitzesommer: filtern, ableiten, aggregieren</li>
+                <li>Hai-Daten: Spezifikation schreiben und die KI beauftragen</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Danach im Projekt</h3>
+              <ul class="list-tight text-sm">
+                <li>Eigene Regeln in <code>TRANSFORM.md</code> festhalten</li>
+                <li>Transform implementieren und prüfen</li>
+                <li>Datenvertrag mit dem anderen Zweierteam abnehmen</li>
+              </ul>
+            </div>
+          </div>
+          <div class="callout callout-blue">
+            <p>Am Ende des Tages zeigt ihr: Rohdaten rein, saubere Struktur raus, Audit daneben.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 42 Schluss ============ -->
+      <section id="schluss">
+        <h2>Zum Mitnehmen</h2>
+        <div class="content" style="justify-content: center;">
+          <p class="big-statement">Wir säubern Daten nicht «allgemein» –<br>wir übersetzen eine Frage in
+            überprüfbare Regeln.</p>
+          <p class="text-xl mt-2">Der Code führt diese Regeln nur aus.</p>
+          <p class="mt-2"><span class="next-step">Nächster Schritt: Wetterdaten auf Papier transformieren</span></p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: true,
+      progress: true,
+      slideNumber: 'c',
+      hash: true,
+      transition: 'slide',
+      center: false,
+      plugins: [ RevealHighlight ]
+    });
+  </script>
+</body>
+</html>

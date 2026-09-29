@@ -1,0 +1,181 @@
+/* Sonderregeln nur fuer den Foliensatz "Kickoff".
+ * Das gemeinsame Design steht in ../_foliendesign/fhgr-slides.css. */
+
+/* Zehn Meilensteine auf einer Folie: engere Zeilen, damit die Tabelle
+ * ohne Scrollen auf die Folie passt. */
+.reveal table.meilensteine td {
+  padding: 4px 12px 4px 0;
+  font-size: 13pt;
+}
+
+.reveal table.meilensteine th {
+  padding-bottom: 6px;
+}
+
+/* Folie "Pflichttermine": Porträt des Gasts neben seinen Angaben. */
+.reveal .gast {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.reveal .gast .portrait {
+  width: 118px;
+  height: 118px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Marktstand-Foto in der Terminkarte: Querformat 4:3, Text daneben. */
+.reveal .gast .stand {
+  display: block;
+  width: 216px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--box-radius);
+  margin: 0;
+}
+
+/* Folie "Semesterinfos": der Vorbereitungsauftrag faellt rot auf. */
+.reveal li.vorbereitung {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+/* Folie "Marktstand Inspiration": Querformat-Foto gross, linksbuendig. */
+.reveal .marktstand-foto {
+  margin: 0;
+}
+
+.reveal .marktstand-foto img {
+  display: block;
+  height: 470px;
+  width: auto;
+  max-height: none;
+  margin: 0;
+  border-radius: var(--box-radius);
+}
+
+.reveal .gast .gast-name {
+  color: var(--text-color);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.reveal .gast .srf-logo {
+  width: 148px;
+  height: auto;
+  margin-top: 14px;
+}
+
+/* Folie "Kursaufbau": die sechs Blöcke als schmale Zeilen untereinander,
+ * damit die Reihenfolge dieselbe Kette zeigt wie die Folie davor. */
+.reveal .kursaufbau {
+  display: grid;
+  gap: 8px;
+}
+
+.reveal .kursaufbau .box {
+  display: grid;
+  grid-template-columns: 30px 220px 1fr;
+  align-items: baseline;
+  gap: 0 14px;
+  padding: 11px 20px;
+  margin: 0;
+}
+
+.reveal .kursaufbau .stufe {
+  font-size: 17pt;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.reveal .kursaufbau .name {
+  font-size: 17pt;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.reveal .kursaufbau .was {
+  font-size: 14pt;
+  color: var(--muted-color);
+}
+
+/* Folie "Wie ein Block abläuft": Listen mit Symbol statt Aufzählungsstrich. */
+.reveal .icon-list li {
+  padding-left: 0;
+  font-size: 15pt;
+}
+
+.reveal .icon-list li::before { content: none; }
+
+/* Folie "Fünf Posten im Raum": die Postenbilder nebeneinander. */
+.reveal .posten-galerie {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 6px;
+}
+
+.reveal .posten-galerie figure {
+  display: block;
+  margin: 0;
+}
+
+.reveal .posten-galerie img {
+  display: block;
+  width: 100%;
+  height: 132px;
+  max-height: none;
+  object-fit: cover;
+  border: 1px solid var(--box-border);
+  border-radius: var(--box-radius);
+}
+
+.reveal .posten-galerie figcaption {
+  margin-top: 10px;
+  font-size: 12pt;
+  color: var(--text-color);
+  line-height: 1.35;
+}
+
+.reveal .posten-galerie .nr {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Posten 2 und 4 tiefer setzen, damit die Reihe nicht wie eine Tabelle wirkt. */
+.reveal .posten-galerie figure:nth-child(even) {
+  margin-top: 60px;
+}
+
+/* Der Arbeitsauftrag steht auf der Unterkante des Inhaltsbereichs,
+ * gleich wie ein Callout am Folienschluss. */
+.reveal .auftrag {
+  margin-top: auto;
+  margin-bottom: 34px;
+}
+
+.reveal .auftrag ul li:last-child { margin-bottom: 0; }
+
+/* Folie "Resultate Workshop": fuenf Zeilen mit drei Spalten Antworten,
+ * deshalb enger und kleiner als eine normale Tabelle. */
+.reveal table.resultate td,
+.reveal table.resultate th {
+  padding: 7px 14px 7px 0;
+  font-size: 13pt;
+  vertical-align: top;
+}
+
+.reveal table.resultate .nr {
+  display: inline-block;
+  margin-right: 7px;
+  color: var(--primary-color);
+  font-weight: 600;
+}
